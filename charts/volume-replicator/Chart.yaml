@@ -1,0 +1,7 @@
+apiVersion: v2
+name: volume-replicator
+description: A Helm chart to deploy the Superphenix Volume Replicator
+
+type: application
+version: 0.1.0
+appVersion: "latest"
