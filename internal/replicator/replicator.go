@@ -2,13 +2,14 @@ package replicator
 
 import (
 	"context"
+	"time"
+
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
-	"time"
 )
 
 type Controller struct {
@@ -70,6 +71,7 @@ func reconcileVolumeReplication(key string) {
 	klog.Infof("reconciling VolumeReplication for PVC %s", key)
 	namespace, name, _ := cache.SplitMetaNamespaceKey(key)
 
+	// Retrieve the PVC that we might need to replicate (or that shouldn't be replicated anymore)
 	pvc, err := getPersistentVolumeClaim(key)
 	if err != nil {
 		klog.Error(err)
@@ -79,7 +81,7 @@ func reconcileVolumeReplication(key string) {
 	// Retrieve the VolumeReplication that corresponds to the PVC (it has the same name)
 	volumeReplication, err := getVolumeReplication(key)
 	if err != nil && !errors.IsNotFound(err) {
-		klog.Errorf("couldn't get volumereplication for pvc %s: %s", key, err.Error())
+		klog.Errorf("couldn't get VolumeReplication for pvc %s: %s", key, err.Error())
 		return
 	}
 
@@ -96,6 +98,7 @@ func reconcileVolumeReplication(key string) {
 		return
 	}
 
+	// Retrieve the VRC that should apply to this PVC
 	replicationClass := getVolumeReplicationClass(pvc)
 	if replicationClass != "" {
 		klog.Infof("found VolumeReplicationClass %s for PVC %s", replicationClass, key)
@@ -112,7 +115,7 @@ func reconcileVolumeReplication(key string) {
 
 		if !vrcExists || !vrCorrect {
 			klog.Infof("deleting VolumeReplication %s as it doesn't conform anymore, vrcExists(%t), vrCorrect(%t)", key, vrcExists, vrCorrect)
-			cleanupVolumeReplication(namespace, name)
+			cleanupVolumeReplication(name, namespace)
 			return
 		}
 	}
