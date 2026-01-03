@@ -3,13 +3,13 @@ package replicator
 import (
 	"context"
 	"fmt"
+
 	"github.com/skalanetworks/volume-replicator/internal/constants"
 	"github.com/skalanetworks/volume-replicator/internal/k8s"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
 )
 
@@ -27,7 +27,7 @@ func isVolumeReplicationCorrect(pvc *corev1.PersistentVolumeClaim, vr *unstructu
 	// Check that the dataSource points to the PVC
 	dataSource, _, _ := unstructured.NestedNullCoercingStringMap(vr.Object, "spec", "dataSource")
 	if dataSource["apiGroup"] != "v1" || dataSource["kind"] != "PersistentVolumeClaim" || dataSource["name"] != pvc.Name {
-		klog.Infof("VolumeReplication %s has a datasource mismatch with its parent", key)
+		klog.Infof("VolumeReplication %s has a dataSource mismatch with its parent", key)
 		return false
 	}
 
@@ -92,9 +92,14 @@ func createVolumeReplication(pvc *corev1.PersistentVolumeClaim) error {
 
 // getVolumeReplication returns the VolumeReplication associated with a PVC
 func getVolumeReplication(key string) (*unstructured.Unstructured, error) {
-	ns, name, _ := cache.SplitMetaNamespaceKey(key)
-	vrNsClientSet := k8s.DynamicClientSet.Resource(VolumeReplicationResource).Namespace(ns)
-	return vrNsClientSet.Get(context.Background(), name, metav1.GetOptions{})
+	obj, exists, err := VolumeReplicationInformer.Informer().GetIndexer().GetByKey(key)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, errors.NewNotFound(VolumeReplicationResource.GroupResource(), key)
+	}
+	return obj.(*unstructured.Unstructured), nil
 }
 
 // getVolumeReplicationClass returns the VRC to use for a PVC
@@ -123,8 +128,13 @@ func isParentLabelPresent(labels map[string]string) bool {
 	return labels[constants.VrParentLabel] != ""
 }
 
-// getLabelsWithParent returns labels for a VolumeReplication with its parent PVC embedded
-func getLabelsWithParent(labels map[string]string, parent string) map[string]string {
-	labels[constants.VrParentLabel] = parent
-	return labels
+// getLabelsWithParent returns a new map of labels for a VolumeReplication with its parent PVC embedded.
+// It creates a copy of the input map to avoid side effects.
+func getLabelsWithParent(pvcLabels map[string]string, parent string) map[string]string {
+	res := make(map[string]string, len(pvcLabels)+1)
+	for k, v := range pvcLabels {
+		res[k] = v
+	}
+	res[constants.VrParentLabel] = parent
+	return res
 }
