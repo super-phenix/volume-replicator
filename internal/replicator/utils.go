@@ -64,14 +64,25 @@ func getPersistentVolumeClaim(key string) (*corev1.PersistentVolumeClaim, error)
 func createVolumeReplication(pvc *corev1.PersistentVolumeClaim) error {
 	// Create an unstructured VolumeReplication with the same name and same metadata as the PVC
 	volumeReplication := &unstructured.Unstructured{}
+
+	annotations := make(map[string]interface{})
+	for k, v := range pvc.Annotations {
+		annotations[k] = v
+	}
+
+	labels := make(map[string]interface{})
+	for k, v := range getLabelsWithParent(pvc.Labels, pvc.Name) {
+		labels[k] = v
+	}
+
 	volumeReplication.SetUnstructuredContent(map[string]interface{}{
 		"apiVersion": fmt.Sprintf("%s/%s", VolumeReplicationResource.Group, VolumeReplicationResource.Version),
 		"kind":       "VolumeReplication",
 		"metadata": map[string]interface{}{
 			"name":        pvc.Name,
 			"namespace":   pvc.Namespace,
-			"annotations": pvc.Annotations,
-			"labels":      getLabelsWithParent(pvc.Labels, pvc.Name),
+			"annotations": annotations,
+			"labels":      labels,
 		},
 		"spec": map[string]interface{}{
 			"volumeReplicationClass": getVolumeReplicationClass(pvc),

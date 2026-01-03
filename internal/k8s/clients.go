@@ -10,7 +10,7 @@ import (
 
 var (
 	ClientSet        *kubernetes.Clientset
-	DynamicClientSet *dynamic.DynamicClient
+	DynamicClientSet dynamic.Interface
 )
 
 // Load loads the Kubernetes configuration and creates all the informers and clients
