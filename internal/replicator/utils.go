@@ -113,27 +113,6 @@ func getVolumeReplication(key string) (*unstructured.Unstructured, error) {
 	return obj.(*unstructured.Unstructured), nil
 }
 
-// getVolumeReplicationClass returns the VRC to use for a PVC
-// The VRC is specified through an annotation on the PVC or on its namespace
-// The annotation on the PVC has priority over the one of the namespace
-// If no VRC is found on either PVC or namespace, we return an empty string
-func getVolumeReplicationClass(pvc *corev1.PersistentVolumeClaim) string {
-	// If the PVC has a VRC specified, it has priority over the one of the namespace
-	if pvc.Annotations[constants.VrcAnnotation] != "" {
-		return pvc.Annotations[constants.VrcAnnotation]
-	}
-
-	// If the PVC doesn't have a VRC specified, fall back to the namespace
-	namespace, err := NamespaceInformer.Lister().Get(pvc.Namespace)
-	if err != nil {
-		klog.Errorf("failed to retrieve parent namespace for pvc %s/%s: %s", pvc.Namespace, pvc.Name, err.Error())
-		return ""
-	}
-
-	// If the namespace doesn't have VRC, this will return an empty string
-	return namespace.Annotations[constants.VrcAnnotation]
-}
-
 // isParentLabelPresent returns whether a parent label is present on a VolumeReplication
 func isParentLabelPresent(labels map[string]string) bool {
 	return labels[constants.VrParentLabel] != ""
@@ -148,4 +127,33 @@ func getLabelsWithParent(pvcLabels map[string]string, parent string) map[string]
 	}
 	res[constants.VrParentLabel] = parent
 	return res
+}
+
+// getStorageClassLabels returns the labels of a StorageClass
+func getStorageClassLabels(pvc *corev1.PersistentVolumeClaim) (map[string]string, error) {
+	// If the PVC doesn't have a storageClass, we can't do much more
+	if pvc.Spec.StorageClassName == nil {
+		return nil, nil
+	}
+
+	// Retrieve the StorageClass associated with this PVC
+	stcGetter := k8s.ClientSet.StorageV1().StorageClasses()
+	storageClass, err := stcGetter.Get(context.Background(), *pvc.Spec.StorageClassName, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	return storageClass.Labels, nil
+}
+
+// getStorageClassGroup returns the StorageClass group of a PVC
+func getStorageClassGroup(pvc *corev1.PersistentVolumeClaim) (string, error) {
+	// Retrieve the labels on the StorageClass of that PVC
+	stcLabels, err := getStorageClassLabels(pvc)
+	if err != nil {
+		return "", err
+	}
+
+	// Retrieve the group of VolumeReplicationClasses associated with this StorageClass
+	return stcLabels[constants.VrStorageClassGroup], nil
 }
