@@ -15,8 +15,9 @@ import (
 // We check if the volumeReplicationClass annotation has changed, and if it has,
 // we propagate the update to every PVC inside the namespace
 func (c *Controller) namespaceUpdate(oldNs, newNs *corev1.Namespace) {
-	// Don't continue if the class hasn't changed or if the annotation wasn't deleted
-	if oldNs.Annotations[constants.VrcAnnotation] == newNs.Annotations[constants.VrcAnnotation] {
+	// Don't continue if the class haven't changed or if the annotations weren't deleted
+	if oldNs.Annotations[constants.VrcValueAnnotation] == newNs.Annotations[constants.VrcValueAnnotation] &&
+		oldNs.Annotations[constants.VrcSelectorAnnotation] == newNs.Annotations[constants.VrcSelectorAnnotation] {
 		return
 	}
 

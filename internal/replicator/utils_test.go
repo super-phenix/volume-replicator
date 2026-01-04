@@ -9,6 +9,7 @@ import (
 	"github.com/skalanetworks/volume-replicator/internal/k8s"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -38,8 +39,8 @@ func TestCreateVolumeReplication(t *testing.T) {
 			Name:      pvcName,
 			Namespace: nsName,
 			Annotations: map[string]string{
-				constants.VrcAnnotation: vrcName,
-				"other-annotation":      "value",
+				constants.VrcValueAnnotation: vrcName,
+				"other-annotation":           "value",
 			},
 			Labels: map[string]string{
 				"other-label": "value",
@@ -59,7 +60,7 @@ func TestCreateVolumeReplication(t *testing.T) {
 		// Check metadata
 		require.Equal(t, pvcName, vr.GetName())
 		require.Equal(t, nsName, vr.GetNamespace())
-		require.Equal(t, vrcName, vr.GetAnnotations()[constants.VrcAnnotation])
+		require.Equal(t, vrcName, vr.GetAnnotations()[constants.VrcValueAnnotation])
 		require.Equal(t, "value", vr.GetAnnotations()["other-annotation"])
 		require.Equal(t, "value", vr.GetLabels()["other-label"])
 		require.Equal(t, pvcName, vr.GetLabels()[constants.VrParentLabel])
@@ -126,121 +127,6 @@ func TestGetPersistentVolumeClaim(t *testing.T) {
 	})
 }
 
-func TestGetVolumeReplicationClass(t *testing.T) {
-	client := fake.NewClientset()
-	informerFactory := informers.NewSharedInformerFactory(client, 0)
-	NamespaceInformer = informerFactory.Core().V1().Namespaces()
-
-	// Initializing the informer's cache with some data
-	nsName := "test-namespace"
-	vrcName := "test-vrc"
-
-	tests := []struct {
-		name           string
-		pvc            *corev1.PersistentVolumeClaim
-		namespace      *corev1.Namespace
-		expectedResult string
-	}{
-		{
-			name: "VRC in PVC annotations",
-			pvc: &corev1.PersistentVolumeClaim{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-pvc",
-					Namespace: nsName,
-					Annotations: map[string]string{
-						constants.VrcAnnotation: vrcName,
-					},
-				},
-			},
-			expectedResult: vrcName,
-		},
-		{
-			name: "VRC in Namespace annotations",
-			pvc: &corev1.PersistentVolumeClaim{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-pvc",
-					Namespace: nsName,
-				},
-			},
-			namespace: &corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: nsName,
-					Annotations: map[string]string{
-						constants.VrcAnnotation: vrcName,
-					},
-				},
-			},
-			expectedResult: vrcName,
-		},
-		{
-			name: "VRC in both - PVC priority",
-			pvc: &corev1.PersistentVolumeClaim{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-pvc",
-					Namespace: nsName,
-					Annotations: map[string]string{
-						constants.VrcAnnotation: "pvc-vrc",
-					},
-				},
-			},
-			namespace: &corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: nsName,
-					Annotations: map[string]string{
-						constants.VrcAnnotation: "ns-vrc",
-					},
-				},
-			},
-			expectedResult: "pvc-vrc",
-		},
-		{
-			name: "VRC missing in both",
-			pvc: &corev1.PersistentVolumeClaim{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-pvc",
-					Namespace: nsName,
-				},
-			},
-			namespace: &corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: nsName,
-				},
-			},
-			expectedResult: "",
-		},
-		{
-			name: "Namespace retrieval failure (not found)",
-			pvc: &corev1.PersistentVolumeClaim{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-pvc",
-					Namespace: "non-existent",
-				},
-			},
-			expectedResult: "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Clear cache and add namespace if provided
-			// We use the indexer directly to avoid issues with starting the informer factory
-			indexer := NamespaceInformer.Informer().GetIndexer()
-			for _, obj := range indexer.List() {
-				err := indexer.Delete(obj)
-				require.NoError(t, err)
-			}
-
-			if tt.namespace != nil {
-				err := indexer.Add(tt.namespace)
-				require.NoError(t, err)
-			}
-
-			result := getVolumeReplicationClass(tt.pvc)
-			require.Equal(t, tt.expectedResult, result)
-		})
-	}
-}
-
 func TestIsParentLabelPresent(t *testing.T) {
 	t.Parallel()
 
@@ -285,6 +171,152 @@ func TestIsParentLabelPresent(t *testing.T) {
 			require.Equal(t, tt.result, result)
 		})
 	}
+}
+
+func TestGetStorageClassLabels(t *testing.T) {
+	client := fake.NewClientset()
+	k8s.ClientSet = client
+
+	stcName := "test-storage-class"
+	labels := map[string]string{"foo": "bar"}
+
+	t.Run("PVC has no StorageClassName", func(t *testing.T) {
+		pvc := &corev1.PersistentVolumeClaim{
+			Spec: corev1.PersistentVolumeClaimSpec{
+				StorageClassName: nil,
+			},
+		}
+		result, err := getStorageClassLabels(pvc)
+		require.NoError(t, err)
+		require.Nil(t, result)
+	})
+
+	t.Run("StorageClass exists and has labels", func(t *testing.T) {
+		stc := &storagev1.StorageClass{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   stcName,
+				Labels: labels,
+			},
+		}
+		_, _ = client.StorageV1().StorageClasses().Create(context.Background(), stc, metav1.CreateOptions{})
+
+		pvc := &corev1.PersistentVolumeClaim{
+			Spec: corev1.PersistentVolumeClaimSpec{
+				StorageClassName: &stcName,
+			},
+		}
+		result, err := getStorageClassLabels(pvc)
+		require.NoError(t, err)
+		require.Equal(t, labels, result)
+
+		_ = client.StorageV1().StorageClasses().Delete(context.Background(), stcName, metav1.DeleteOptions{})
+	})
+
+	t.Run("StorageClass exists and has no labels", func(t *testing.T) {
+		stc := &storagev1.StorageClass{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: stcName,
+			},
+		}
+		_, _ = client.StorageV1().StorageClasses().Create(context.Background(), stc, metav1.CreateOptions{})
+
+		pvc := &corev1.PersistentVolumeClaim{
+			Spec: corev1.PersistentVolumeClaimSpec{
+				StorageClassName: &stcName,
+			},
+		}
+		result, err := getStorageClassLabels(pvc)
+		require.NoError(t, err)
+		require.Nil(t, result)
+
+		_ = client.StorageV1().StorageClasses().Delete(context.Background(), stcName, metav1.DeleteOptions{})
+	})
+
+	t.Run("StorageClass does not exist", func(t *testing.T) {
+		pvc := &corev1.PersistentVolumeClaim{
+			Spec: corev1.PersistentVolumeClaimSpec{
+				StorageClassName: &stcName,
+			},
+		}
+		result, err := getStorageClassLabels(pvc)
+		require.Error(t, err)
+		require.True(t, errors.IsNotFound(err))
+		require.Nil(t, result)
+	})
+}
+
+func TestGetStorageClassGroup(t *testing.T) {
+	client := fake.NewClientset()
+	k8s.ClientSet = client
+
+	stcName := "test-storage-class"
+	groupName := "test-group"
+
+	t.Run("PVC has no StorageClassName", func(t *testing.T) {
+		pvc := &corev1.PersistentVolumeClaim{
+			Spec: corev1.PersistentVolumeClaimSpec{
+				StorageClassName: nil,
+			},
+		}
+		result, err := getStorageClassGroup(pvc)
+		require.NoError(t, err)
+		require.Equal(t, "", result)
+	})
+
+	t.Run("StorageClass has no group label", func(t *testing.T) {
+		stc := &storagev1.StorageClass{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: stcName,
+			},
+		}
+		_, _ = client.StorageV1().StorageClasses().Create(context.Background(), stc, metav1.CreateOptions{})
+
+		pvc := &corev1.PersistentVolumeClaim{
+			Spec: corev1.PersistentVolumeClaimSpec{
+				StorageClassName: &stcName,
+			},
+		}
+		result, err := getStorageClassGroup(pvc)
+		require.NoError(t, err)
+		require.Equal(t, "", result)
+
+		_ = client.StorageV1().StorageClasses().Delete(context.Background(), stcName, metav1.DeleteOptions{})
+	})
+
+	t.Run("StorageClass has group label", func(t *testing.T) {
+		stc := &storagev1.StorageClass{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: stcName,
+				Labels: map[string]string{
+					constants.VrStorageClassGroup: groupName,
+				},
+			},
+		}
+		_, _ = client.StorageV1().StorageClasses().Create(context.Background(), stc, metav1.CreateOptions{})
+
+		pvc := &corev1.PersistentVolumeClaim{
+			Spec: corev1.PersistentVolumeClaimSpec{
+				StorageClassName: &stcName,
+			},
+		}
+		result, err := getStorageClassGroup(pvc)
+		require.NoError(t, err)
+		require.Equal(t, groupName, result)
+
+		_ = client.StorageV1().StorageClasses().Delete(context.Background(), stcName, metav1.DeleteOptions{})
+	})
+
+	t.Run("StorageClass does not exist", func(t *testing.T) {
+		pvc := &corev1.PersistentVolumeClaim{
+			Spec: corev1.PersistentVolumeClaimSpec{
+				StorageClassName: &stcName,
+			},
+		}
+		result, err := getStorageClassGroup(pvc)
+		require.Error(t, err)
+		require.True(t, errors.IsNotFound(err))
+		require.Equal(t, "", result)
+	})
 }
 
 func TestGetLabelsWithParent(t *testing.T) {
@@ -456,7 +488,7 @@ func TestIsVolumeReplicationCorrect(t *testing.T) {
 			Name:      pvcName,
 			Namespace: nsName,
 			Annotations: map[string]string{
-				constants.VrcAnnotation: vrcName,
+				constants.VrcValueAnnotation: vrcName,
 			},
 		},
 	}

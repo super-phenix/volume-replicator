@@ -2,6 +2,8 @@ package replicator
 
 import (
 	"context"
+	"time"
+
 	"github.com/skalanetworks/volume-replicator/internal/k8s"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -10,7 +12,6 @@ import (
 	"k8s.io/client-go/informers"
 	v1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/tools/cache"
-	"time"
 )
 
 const (
@@ -28,6 +29,12 @@ var (
 		Group:    volumeReplicationGroup,
 		Version:  volumeReplicationVersion,
 		Resource: "volumereplications",
+	}
+
+	VolumeReplicationClassesResource = schema.GroupVersionResource{
+		Group:    volumeReplicationGroup,
+		Version:  volumeReplicationVersion,
+		Resource: "volumereplicationclasses",
 	}
 )
 

@@ -40,7 +40,7 @@ func TestReconcileVolumeReplication(t *testing.T) {
 			Name:      pvcName,
 			Namespace: nsName,
 			Annotations: map[string]string{
-				constants.VrcAnnotation: vrcName,
+				constants.VrcValueAnnotation: vrcName,
 			},
 		},
 	}
