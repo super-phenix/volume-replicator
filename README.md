@@ -10,14 +10,15 @@ the actual replication itself.
 
 - **Automated Lifecycle**: Automatically creates `VolumeReplication` objects for PVCs with the appropriate annotation.
 - **Inheritance**: Can inherit the `VolumeReplicationClass` from the PVC or from the PVC's namespace (if not specified on the PVC).
+- **VRC Selector**: Supports selecting a `VolumeReplicationClass` using a selector, allowing for more dynamic configuration based on `StorageClass` groups.
 - **Cleanup**: Automatically deletes `VolumeReplication` resources when their parent PVC is deleted or when the replication annotation is removed.
 - **Leader Election**: Supports high availability with leader election to ensure only one instance is active at a time.
 - **Metadata Propagation**: Labels and annotations from the PVC are propagated to the generated `VolumeReplication` resource.
 
 ## Usage
 
-To enable replication for a PVC, you need to specify a `VolumeReplicationClass` using an annotation.
-The `VolumeReplicationClass` must be pre-existing and compatible with the `StorageClass` of your PVC.
+To enable replication for a PVC, you need to specify a `VolumeReplicationClass` or a selector using an annotation.
+The `VolumeReplicationClass` must be compatible with the `StorageClass` of your PVC.
 
 Once the annotation is detected on either the PVC or its namespace, the corresponding `VolumeReplication` object is created.
 
@@ -25,7 +26,7 @@ Once the annotation is detected on either the PVC or its namespace, the correspo
 > It is important that your CSI is compatible with the CSI-Addons project and can handle replicating the data in your volumes to another cluster.
 > Check the documentation of your CSI for more information and ensure the CSI-Addons CRDs are installed on your  cluster.
 
-### Annotating a PVC
+### Using a specific VolumeReplicationClass
 
 Add the following annotation to your `PersistentVolumeClaim`:
 
@@ -37,12 +38,90 @@ metadata:
   annotations:
     replication.superphenix.net/class: "my-replication-class"
 spec:
-  # ... PVC spec ...
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
 ```
+
+### Using a VolumeReplicationClass Selector
+
+Alternatively, you can use a selector to let the controller choose the appropriate `VolumeReplicationClass`.
+This is useful when you have multiple `StorageClasses` and you want to apply a common replication policy (e.g., "daily") across them.
+
+For example, if you have two different CSIs, you might have two different `StorageClass`.
+If you wish to implement a daily replication policy, you will have to create two different `VolumeReplicationClass` objects (one for each `StorageClass`).
+These two VRCs will do exactly the same thing but have different credentials for each backend.
+
+Using the `replication.superphenix.net/class` annotation, users would need to know which `VolumeReplicationClass` to use for which `StorageClass`.
+Using selectors, a simple `daily` label can be added to the PVC to make it replicated, without knowledge of the real `VolumeReplicationClass` name.
+
+The controller will automatically infer the `VolumeReplicationClass` linked to the `StorageClass` of the PVC based on the `storageClassGroup` label appended to both of them.
+The user can then specify what replication policy they want applied to their PVC using an additional annotation on the PVC.
+
+#### 1. Label your StorageClass
+
+Add the `replication.superphenix.net/storageClassGroup` label to your `StorageClass`:
+
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: fast-storage
+  labels:
+    replication.superphenix.net/storageClassGroup: "ceph"
+provisioner: ceph
+```
+
+#### 2. Label your VolumeReplicationClasses
+
+Label your `VolumeReplicationClass` objects with both the group and the selector:
+
+```yaml
+apiVersion: replication.storage.openshift.io/v1alpha1
+kind: VolumeReplicationClass
+metadata:
+  name: production-ssd-daily
+  labels:
+    replication.superphenix.net/storageClassGroup: "ceph"
+    replication.superphenix.net/classSelector: "daily"
+spec:
+  provisioner: ceph
+  parameters:
+    ...
+```
+
+The controller now knows that PVCs provisioned using the "fast-storage" `StorageClass` can be replicated using the "production-ssd-daily" `VolumeReplicationClass`.
+It is possible to link multiple `StorageClass` and `VolumeReplicationClass` objects together using the same selector.
+
+The controller also knows that the `production-ssd-daily` `VolumeReplicationClass` can be selected using the `daily` selector.
+
+#### 3. Annotate your PVC or Namespace
+
+Add the `replication.superphenix.net/classSelector` annotation to your PVC or its Namespace:
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: my-pvc
+  annotations:
+    replication.superphenix.net/classSelector: "daily"
+spec:
+  storageClassName: fast-storage
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+```
+
+The controller will look for a `VolumeReplicationClass` that matches both the `storageClassGroup` of the PVC's `StorageClass` and the `classSelector` specified in the annotation.
 
 ### Annotating a Namespace
 
-If multiple PVCs in a namespace should use the same `VolumeReplicationClass`, you can annotate the namespace instead:
+If multiple PVCs in a namespace should use the same `VolumeReplicationClass` (or selector), you can annotate the namespace instead:
 
 ```yaml
 apiVersion: v1
@@ -51,6 +130,8 @@ metadata:
   name: my-namespace
   annotations:
     replication.superphenix.net/class: "my-replication-class"
+    # OR
+    # replication.superphenix.net/classSelector: "daily"
 ```
 
 The annotation on the PVC takes precedence over the annotation on the namespace.
