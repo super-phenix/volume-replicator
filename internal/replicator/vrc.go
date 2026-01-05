@@ -50,22 +50,22 @@ func getVolumeReplicationClassFromSelector(pvc *corev1.PersistentVolumeClaim) st
 		return ""
 	}
 
-	// Filter all VolumeReplicationClasses in the correct group and with the correct classSelector
-	volumeReplicationClasses, err := filterVrcFromSelector(group, selector)
+	// Filter all VolumeReplicationClasses in the correct group and with the correct classSelector/provisioner
+	volumeReplicationClasses, err := filterVrcFromSelector(group, selector, getPvcProvisioner(pvc))
 	if err != nil {
 		klog.Errorf("failed to filter VRCs for PVC %s/%s: %s", pvc.Namespace, pvc.Name, err.Error())
 		return ""
 	}
 
 	// We expect to find exactly one VolumeReplicationClass
-	if len(volumeReplicationClasses.Items) != 1 {
-		if len(volumeReplicationClasses.Items) > 1 {
-			klog.Errorf("found %d matching VRCs for PVC %s/%s, expected 1", len(volumeReplicationClasses.Items), pvc.Namespace, pvc.Name)
+	if len(volumeReplicationClasses) != 1 {
+		if len(volumeReplicationClasses) > 1 {
+			klog.Errorf("found %d matching VRCs for PVC %s/%s, expected 1", len(volumeReplicationClasses), pvc.Namespace, pvc.Name)
 		}
 		return ""
 	}
 
-	return volumeReplicationClasses.Items[0].GetName()
+	return volumeReplicationClasses[0]
 }
 
 // getVolumeReplicationClassValue returns the VRC to use for a PVC.
@@ -104,13 +104,14 @@ func getAnnotationValue(pvc *corev1.PersistentVolumeClaim, annotation string) st
 }
 
 // filterVrcFromSelector returns a VolumeReplicationClass that is in a specific StorageClass Group
-// and with a specific VolumeReplicationClass selector.
-func filterVrcFromSelector(group, selector string) (*unstructured.UnstructuredList, error) {
+// and with a specific VolumeReplicationClass selector. It also filters for faulty provisioners.
+// It is assumed that a VRC must have a provisioner identical to the provisioner of the PVC.
+func filterVrcFromSelector(group, selector, pvcProvisioner string) ([]string, error) {
 	// Filter only VRCs in the right StorageClass group and with the right selector
 	vrcLister := k8s.DynamicClientSet.Resource(VolumeReplicationClassesResource)
 	labelSelector := &metav1.LabelSelector{
 		MatchLabels: map[string]string{
-			constants.VrStorageClassGroup:   group,
+			constants.StorageClassGroup:     group,
 			constants.VrcSelectorAnnotation: selector,
 		},
 	}
@@ -121,5 +122,15 @@ func filterVrcFromSelector(group, selector string) (*unstructured.UnstructuredLi
 		return nil, err
 	}
 
-	return list, nil
+	// Filter for VRCs that have the same provisioner as our PVC
+	var classes []string
+	for _, item := range list.Items {
+		vrcProvisioner, _, _ := unstructured.NestedString(item.Object, "spec", "provisioner")
+		// Allow the pvcProvisioner to be empty, as some CSI may not place it in any annotation.
+		if vrcProvisioner == pvcProvisioner || pvcProvisioner == "" {
+			classes = append(classes, item.GetName())
+		}
+	}
+
+	return classes, nil
 }

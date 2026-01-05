@@ -115,7 +115,7 @@ func getVolumeReplication(key string) (*unstructured.Unstructured, error) {
 
 // isParentLabelPresent returns whether a parent label is present on a VolumeReplication
 func isParentLabelPresent(labels map[string]string) bool {
-	return labels[constants.VrParentLabel] != ""
+	return labels[constants.ParentLabel] != ""
 }
 
 // getLabelsWithParent returns a new map of labels for a VolumeReplication with its parent PVC embedded.
@@ -125,7 +125,7 @@ func getLabelsWithParent(pvcLabels map[string]string, parent string) map[string]
 	for k, v := range pvcLabels {
 		res[k] = v
 	}
-	res[constants.VrParentLabel] = parent
+	res[constants.ParentLabel] = parent
 	return res
 }
 
@@ -155,5 +155,16 @@ func getStorageClassGroup(pvc *corev1.PersistentVolumeClaim) (string, error) {
 	}
 
 	// Retrieve the group of VolumeReplicationClasses associated with this StorageClass
-	return stcLabels[constants.VrStorageClassGroup], nil
+	return stcLabels[constants.StorageClassGroup], nil
+}
+
+// getPvcProvisioner returns the dynamic provisioner used to provision a PVC
+func getPvcProvisioner(pvc *corev1.PersistentVolumeClaim) string {
+	// Try the well-known annotation first
+	if pvc.Annotations[constants.StorageProvisionerAnnotation] != "" {
+		return pvc.Annotations[constants.StorageProvisionerAnnotation]
+	}
+
+	// Fallback to the deprecated annotation
+	return pvc.Annotations[constants.DeprecatedStorageProvisionerAnnotation]
 }
