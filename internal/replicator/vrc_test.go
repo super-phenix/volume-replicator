@@ -52,12 +52,14 @@ func TestGetVolumeReplicationClass(t *testing.T) {
 	stcName := "test-storage-class"
 	groupName := "test-group"
 
+	provisionerName := "test-provisioner"
+
 	// Create a StorageClass
 	stc := &storagev1.StorageClass{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: stcName,
 			Labels: map[string]string{
-				constants.VrStorageClassGroup: groupName,
+				constants.StorageClassGroup: groupName,
 			},
 		},
 	}
@@ -71,9 +73,12 @@ func TestGetVolumeReplicationClass(t *testing.T) {
 			"metadata": map[string]interface{}{
 				"name": "vrc-matched",
 				"labels": map[string]interface{}{
-					constants.VrStorageClassGroup:   groupName,
+					constants.StorageClassGroup:     groupName,
 					constants.VrcSelectorAnnotation: selectorValue,
 				},
+			},
+			"spec": map[string]interface{}{
+				"provisioner": provisionerName,
 			},
 		},
 	}
@@ -123,7 +128,8 @@ func TestGetVolumeReplicationClass(t *testing.T) {
 					Name:      "test-pvc",
 					Namespace: nsName,
 					Annotations: map[string]string{
-						constants.VrcSelectorAnnotation: selectorValue,
+						constants.VrcSelectorAnnotation:        selectorValue,
+						constants.StorageProvisionerAnnotation: provisionerName,
 					},
 				},
 				Spec: corev1.PersistentVolumeClaimSpec{
@@ -138,6 +144,9 @@ func TestGetVolumeReplicationClass(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-pvc",
 					Namespace: nsName,
+					Annotations: map[string]string{
+						constants.StorageProvisionerAnnotation: provisionerName,
+					},
 				},
 				Spec: corev1.PersistentVolumeClaimSpec{
 					StorageClassName: &stcName,
@@ -418,6 +427,7 @@ func TestGetVolumeReplicationClassFromSelector(t *testing.T) {
 	stcName := "test-storage-class"
 	groupName := "test-group"
 	selectorValue := "test-selector"
+	provisionerName := "test-provisioner"
 
 	vrc := &unstructured.Unstructured{
 		Object: map[string]interface{}{
@@ -426,9 +436,12 @@ func TestGetVolumeReplicationClassFromSelector(t *testing.T) {
 			"metadata": map[string]interface{}{
 				"name": "vrc-matched",
 				"labels": map[string]interface{}{
-					constants.VrStorageClassGroup:   groupName,
+					constants.StorageClassGroup:     groupName,
 					constants.VrcSelectorAnnotation: selectorValue,
 				},
+			},
+			"spec": map[string]interface{}{
+				"provisioner": provisionerName,
 			},
 		},
 	}
@@ -438,7 +451,7 @@ func TestGetVolumeReplicationClassFromSelector(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: stcName,
 			Labels: map[string]string{
-				constants.VrStorageClassGroup: groupName,
+				constants.StorageClassGroup: groupName,
 			},
 		},
 	}
@@ -458,7 +471,8 @@ func TestGetVolumeReplicationClassFromSelector(t *testing.T) {
 		pvc := &corev1.PersistentVolumeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{
-					constants.VrcSelectorAnnotation: selectorValue,
+					constants.VrcSelectorAnnotation:        selectorValue,
+					constants.StorageProvisionerAnnotation: provisionerName,
 				},
 			},
 			Spec: corev1.PersistentVolumeClaimSpec{
@@ -467,6 +481,22 @@ func TestGetVolumeReplicationClassFromSelector(t *testing.T) {
 		}
 		result := getVolumeReplicationClassFromSelector(pvc)
 		require.Equal(t, "vrc-matched", result)
+	})
+
+	t.Run("PVC with annotation, matching provisioner not found", func(t *testing.T) {
+		pvc := &corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{
+					constants.VrcSelectorAnnotation:        selectorValue,
+					constants.StorageProvisionerAnnotation: "other-provisioner",
+				},
+			},
+			Spec: corev1.PersistentVolumeClaimSpec{
+				StorageClassName: &stcName,
+			},
+		}
+		result := getVolumeReplicationClassFromSelector(pvc)
+		require.Equal(t, "", result)
 	})
 
 	t.Run("StorageClass has no group", func(t *testing.T) {
@@ -518,9 +548,12 @@ func TestGetVolumeReplicationClassFromSelector(t *testing.T) {
 				"metadata": map[string]interface{}{
 					"name": "vrc-matched-2",
 					"labels": map[string]interface{}{
-						constants.VrStorageClassGroup:   groupName,
+						constants.StorageClassGroup:     groupName,
 						constants.VrcSelectorAnnotation: selectorValue,
 					},
+				},
+				"spec": map[string]interface{}{
+					"provisioner": provisionerName,
 				},
 			},
 		}
@@ -532,7 +565,8 @@ func TestGetVolumeReplicationClassFromSelector(t *testing.T) {
 		pvc := &corev1.PersistentVolumeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{
-					constants.VrcSelectorAnnotation: selectorValue,
+					constants.VrcSelectorAnnotation:        selectorValue,
+					constants.StorageProvisionerAnnotation: provisionerName,
 				},
 			},
 			Spec: corev1.PersistentVolumeClaimSpec{
@@ -588,9 +622,12 @@ func TestFilterVrcFromSelector(t *testing.T) {
 			"metadata": map[string]interface{}{
 				"name": "vrc-1",
 				"labels": map[string]interface{}{
-					constants.VrStorageClassGroup:   "group-1",
+					constants.StorageClassGroup:     "group-1",
 					constants.VrcSelectorAnnotation: "match",
 				},
+			},
+			"spec": map[string]interface{}{
+				"provisioner": "provisioner-1",
 			},
 		},
 	}
@@ -602,9 +639,12 @@ func TestFilterVrcFromSelector(t *testing.T) {
 			"metadata": map[string]interface{}{
 				"name": "vrc-2",
 				"labels": map[string]interface{}{
-					constants.VrStorageClassGroup:   "group-2",
+					constants.StorageClassGroup:     "group-2",
 					constants.VrcSelectorAnnotation: "no-match",
 				},
+			},
+			"spec": map[string]interface{}{
+				"provisioner": "provisioner-2",
 			},
 		},
 	}
@@ -612,19 +652,28 @@ func TestFilterVrcFromSelector(t *testing.T) {
 	_, _ = dynamicClient.Resource(VolumeReplicationClassesResource).Create(context.Background(), vrc1, metav1.CreateOptions{})
 	_, _ = dynamicClient.Resource(VolumeReplicationClassesResource).Create(context.Background(), vrc2, metav1.CreateOptions{})
 
-	t.Run("Match found with both labels", func(t *testing.T) {
-		list, err := filterVrcFromSelector("group-1", "match")
+	t.Run("Match found with both labels and provisioner", func(t *testing.T) {
+		list, err := filterVrcFromSelector("group-1", "match", "provisioner-1")
 		require.NoError(t, err)
-		require.NotNil(t, list)
-		require.Len(t, list.Items, 1)
-		require.Equal(t, "vrc-1", list.Items[0].GetName())
+		require.Equal(t, []string{"vrc-1"}, list)
 	})
 
-	t.Run("No match found", func(t *testing.T) {
-		list, err := filterVrcFromSelector("group-1", "no-match")
+	t.Run("No match found - wrong provisioner", func(t *testing.T) {
+		list, err := filterVrcFromSelector("group-1", "match", "wrong-provisioner")
 		require.NoError(t, err)
-		require.NotNil(t, list)
-		require.Len(t, list.Items, 0)
+		require.Empty(t, list)
+	})
+
+	t.Run("No match found - wrong selector", func(t *testing.T) {
+		list, err := filterVrcFromSelector("group-1", "no-match", "provisioner-1")
+		require.NoError(t, err)
+		require.Empty(t, list)
+	})
+
+	t.Run("Match found - empty pvcProvisioner", func(t *testing.T) {
+		list, err := filterVrcFromSelector("group-1", "match", "")
+		require.NoError(t, err)
+		require.Equal(t, []string{"vrc-1"}, list)
 	})
 
 	t.Run("API error", func(t *testing.T) {
@@ -634,7 +683,7 @@ func TestFilterVrcFromSelector(t *testing.T) {
 		})
 		defer func() { dynamicClient.ReactionChain = dynamicClient.ReactionChain[1:] }()
 
-		list, err := filterVrcFromSelector("group-1", "match")
+		list, err := filterVrcFromSelector("group-1", "match", "provisioner-1")
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "injected list error")
 		require.Nil(t, list)

@@ -63,7 +63,7 @@ func TestCreateVolumeReplication(t *testing.T) {
 		require.Equal(t, vrcName, vr.GetAnnotations()[constants.VrcValueAnnotation])
 		require.Equal(t, "value", vr.GetAnnotations()["other-annotation"])
 		require.Equal(t, "value", vr.GetLabels()["other-label"])
-		require.Equal(t, pvcName, vr.GetLabels()[constants.VrParentLabel])
+		require.Equal(t, pvcName, vr.GetLabels()[constants.ParentLabel])
 
 		// Check spec
 		spec, ok := vr.Object["spec"].(map[string]interface{})
@@ -145,9 +145,9 @@ func TestIsParentLabelPresent(t *testing.T) {
 		{
 			name: "present",
 			labels: map[string]string{
-				"a":                     "b",
-				"c":                     "d",
-				constants.VrParentLabel: "test",
+				"a":                   "b",
+				"c":                   "d",
+				constants.ParentLabel: "test",
 			},
 			result: true,
 		},
@@ -159,7 +159,7 @@ func TestIsParentLabelPresent(t *testing.T) {
 		{
 			name: "empty value",
 			labels: map[string]string{
-				constants.VrParentLabel: "",
+				constants.ParentLabel: "",
 			},
 			result: false,
 		},
@@ -288,7 +288,7 @@ func TestGetStorageClassGroup(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{
 				Name: stcName,
 				Labels: map[string]string{
-					constants.VrStorageClassGroup: groupName,
+					constants.StorageClassGroup: groupName,
 				},
 			},
 		}
@@ -333,7 +333,7 @@ func TestGetLabelsWithParent(t *testing.T) {
 			parent: "test",
 			labels: map[string]string{},
 			result: map[string]string{
-				constants.VrParentLabel: "test",
+				constants.ParentLabel: "test",
 			},
 		},
 		{
@@ -344,9 +344,9 @@ func TestGetLabelsWithParent(t *testing.T) {
 				"c": "d",
 			},
 			result: map[string]string{
-				constants.VrParentLabel: "test",
-				"a":                     "b",
-				"c":                     "d",
+				constants.ParentLabel: "test",
+				"a":                   "b",
+				"c":                   "d",
 			},
 		},
 		{
@@ -354,19 +354,19 @@ func TestGetLabelsWithParent(t *testing.T) {
 			parent: "test",
 			labels: nil,
 			result: map[string]string{
-				constants.VrParentLabel: "test",
+				constants.ParentLabel: "test",
 			},
 		},
 		{
 			name:   "label already present",
 			parent: "new-test",
 			labels: map[string]string{
-				constants.VrParentLabel: "old-test",
-				"a":                     "b",
+				constants.ParentLabel: "old-test",
+				"a":                   "b",
 			},
 			result: map[string]string{
-				constants.VrParentLabel: "new-test",
-				"a":                     "b",
+				constants.ParentLabel: "new-test",
+				"a":                   "b",
 			},
 		},
 	}
@@ -603,6 +603,61 @@ func TestIsVolumeReplicationCorrect(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := isVolumeReplicationCorrect(pvc, tt.vr)
+			require.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestGetPvcProvisioner(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		expected    string
+	}{
+		{
+			name: "standard annotation",
+			annotations: map[string]string{
+				constants.StorageProvisionerAnnotation: "standard-provisioner",
+			},
+			expected: "standard-provisioner",
+		},
+		{
+			name: "deprecated annotation",
+			annotations: map[string]string{
+				constants.DeprecatedStorageProvisionerAnnotation: "deprecated-provisioner",
+			},
+			expected: "deprecated-provisioner",
+		},
+		{
+			name: "both annotations - standard takes precedence",
+			annotations: map[string]string{
+				constants.StorageProvisionerAnnotation:           "standard-provisioner",
+				constants.DeprecatedStorageProvisionerAnnotation: "deprecated-provisioner",
+			},
+			expected: "standard-provisioner",
+		},
+		{
+			name:        "no annotations",
+			annotations: map[string]string{},
+			expected:    "",
+		},
+		{
+			name:        "nil annotations",
+			annotations: nil,
+			expected:    "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pvc := &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: tt.annotations,
+				},
+			}
+			result := getPvcProvisioner(pvc)
 			require.Equal(t, tt.expected, result)
 		})
 	}

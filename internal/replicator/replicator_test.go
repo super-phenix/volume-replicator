@@ -53,7 +53,7 @@ func TestReconcileVolumeReplication(t *testing.T) {
 			"name":      pvcName,
 			"namespace": nsName,
 			"labels": map[string]interface{}{
-				constants.VrParentLabel: pvcName,
+				constants.ParentLabel: pvcName,
 			},
 		},
 		"spec": map[string]interface{}{
