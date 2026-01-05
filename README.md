@@ -97,6 +97,8 @@ It is possible to link multiple `StorageClass` and `VolumeReplicationClass` obje
 
 The controller also knows that the `production-ssd-daily` `VolumeReplicationClass` can be selected using the `daily` selector.
 
+Note that the `provisioner` of the `VolumeReplicationClass` must match the `provisioner` of the `StorageClass` it is linked to.
+
 #### 3. Annotate your PVC or Namespace
 
 Add the `replication.superphenix.net/classSelector` annotation to your PVC or its Namespace:

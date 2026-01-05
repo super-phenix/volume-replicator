@@ -129,6 +129,8 @@ func filterVrcFromSelector(group, selector, pvcProvisioner string) ([]string, er
 		// Allow the pvcProvisioner to be empty, as some CSI may not place it in any annotation.
 		if vrcProvisioner == pvcProvisioner || pvcProvisioner == "" {
 			classes = append(classes, item.GetName())
+		} else {
+			klog.V(2).Infof("discarded VRC %s as it doesn't have the same provisioner as the PVC, got %s, expected %s", item.GetName(), vrcProvisioner, pvcProvisioner)
 		}
 	}
 
