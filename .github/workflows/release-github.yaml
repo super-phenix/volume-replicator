@@ -48,11 +48,12 @@ jobs:
 
       - name: Publish Helm charts
         run: |
+          HELM_VERSION=$(echo "${{ github.ref_name }}" | cut -c 2-)
           cd charts
           yq -i '.image.repository = "${{ env.GHCR_REPO }}"' volume-replicator/values.yaml
           helm registry login -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }} ghcr.io
-          helm package --app-version ${{ github.ref_name }} --version ${{ github.ref_name }} volume-replicator
-          helm push volume-replicator-${{ github.ref_name }}.tgz ${{ env.HELM_REPO }}
+          helm package --app-version ${{ github.ref_name }} --version $HELM_VERSION volume-replicator
+          helm push volume-replicator-$HELM_VERSION.tgz ${{ env.HELM_REPO }}
 
   build-and-push-image:
     runs-on: ubuntu-latest
