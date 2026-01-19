@@ -15,6 +15,12 @@ import (
 // The VRC can be provided through annotations as a value or as a selector.
 // The annotations can be placed on the PVC or on its namespace.
 func getVolumeReplicationClass(pvc *corev1.PersistentVolumeClaim) string {
+	// If the PVC is to be excluded, return an empty replication class
+	if pvcNameMatchesExclusion(pvc) {
+		klog.Infof("PVC %s/%s matches exclusion pattern, no replication class to apply", pvc.Namespace, pvc.Name)
+		return ""
+	}
+
 	// Retrieve the literal VRC provided on the PVC
 	value := getVolumeReplicationClassValue(pvc)
 	if value != "" {

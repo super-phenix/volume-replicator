@@ -3,6 +3,7 @@ package replicator
 import (
 	"context"
 	"fmt"
+	"regexp"
 
 	"github.com/skalanetworks/volume-replicator/internal/constants"
 	"github.com/skalanetworks/volume-replicator/internal/k8s"
@@ -12,6 +13,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/klog/v2"
 )
+
+var ExclusionRegex string
 
 // isVolumeReplicationCorrect verifies if the definition of a VolumeReplication conforms to its originating PVC
 func isVolumeReplicationCorrect(pvc *corev1.PersistentVolumeClaim, vr *unstructured.Unstructured) bool {
@@ -167,4 +170,22 @@ func getPvcProvisioner(pvc *corev1.PersistentVolumeClaim) string {
 
 	// Fallback to the deprecated annotation
 	return pvc.Annotations[constants.DeprecatedStorageProvisionerAnnotation]
+}
+
+// pvcNameMatchesExclusion returns whether a PVC has a name matching the exclusion regex
+func pvcNameMatchesExclusion(pvc *corev1.PersistentVolumeClaim) bool {
+	// If no regex is provided, return that it doesn't match
+	// This is to avoid Go matching "" as "everything matches"
+	if ExclusionRegex == "" {
+		return false
+	}
+
+	// Match the user-provided regex
+	match, err := regexp.MatchString(ExclusionRegex, pvc.Name)
+	if err != nil {
+		klog.Errorf("failed to parse exclusion regex: %s", err.Error())
+		return false
+	}
+
+	return match
 }

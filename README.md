@@ -10,6 +10,7 @@ the actual replication itself.
 
 - **Automated Lifecycle**: Automatically creates `VolumeReplication` objects for PVCs with the appropriate annotation.
 - **Inheritance**: Can inherit the `VolumeReplicationClass` from the PVC or from the PVC's namespace (if not specified on the PVC).
+- **Exclusion by Name**: Supports excluding PVCs from replication using a global regular expression.
 - **VRC Selector**: Supports selecting a `VolumeReplicationClass` using a selector, allowing for more dynamic configuration based on `StorageClass` groups.
 - **Cleanup**: Automatically deletes `VolumeReplication` resources when their parent PVC is deleted or when the replication annotation is removed.
 - **Leader Election**: Supports high availability with leader election to ensure only one instance is active at a time.
@@ -147,6 +148,19 @@ If the annotation is modified, the `VolumeReplication` is updated accordingly wi
 
 If the annotation is deleted on both the PVC and the namespace, the VolumeReplication is deleted.
 
+### Excluding PVCs from replication
+
+It is possible to exclude some PVCs from being replicated, even if they have the correct annotations (or their namespace has them).
+This is done by providing a regular expression to the controller using the `--exclusion-regex` flag or the `EXCLUSION_REGEX` environment variable.
+
+Any PVC whose name matches the regular expression will be ignored by the controller.
+For example, if you set `EXCLUSION_REGEX` to `^prime-.*`, all PVCs starting with `prime-` will be excluded from replication.
+
+This feature is useful to avoid unnecessary replications of temporary PVCs (for example, for "prime" PVCs created by the [Container Data Importer](https://github.com/kubevirt/containerized-data-importer)).
+
+> [!NOTE]
+> If the regular expression is empty, no PVC will be excluded (unless it doesn't have the appropriate annotations).
+
 ## Configuration
 
 The controller can be configured using command-line flags or environment variables:
@@ -155,6 +169,7 @@ The controller can be configured using command-line flags or environment variabl
 |------|----------------------|---------|-------------|
 | `--kubeconfig` | - | - | Path to a kubeconfig file. If not provided, it assumes in-cluster configuration. |
 | `--namespace` | `NAMESPACE` | - | **Required**. The namespace where the controller is deployed (used for leader election). |
+| `--exclusion-regex` | `EXCLUSION_REGEX` | - | Optional regular expression to exclude PVCs from replication by name. |
 
 Standard `klog` flags are also supported for logging configuration.
 

@@ -662,3 +662,62 @@ func TestGetPvcProvisioner(t *testing.T) {
 		})
 	}
 }
+
+func TestPvcNameMatchesExclusion(t *testing.T) {
+	tests := []struct {
+		name           string
+		exclusionRegex string
+		pvcName        string
+		expected       bool
+	}{
+		{
+			name:           "Empty regex matches nothing",
+			exclusionRegex: "",
+			pvcName:        "any-pvc",
+			expected:       false,
+		},
+		{
+			name:           "Exact match",
+			exclusionRegex: "^test-pvc$",
+			pvcName:        "test-pvc",
+			expected:       true,
+		},
+		{
+			name:           "Prefix match",
+			exclusionRegex: "^skip-.*",
+			pvcName:        "skip-this-pvc",
+			expected:       true,
+		},
+		{
+			name:           "No match",
+			exclusionRegex: "^skip-.*",
+			pvcName:        "dont-skip-this",
+			expected:       false,
+		},
+		{
+			name:           "Partial match (regexp.MatchString behavior)",
+			exclusionRegex: "exclude",
+			pvcName:        "pvc-to-exclude-here",
+			expected:       true,
+		},
+		{
+			name:           "Invalid regex",
+			exclusionRegex: "[invalid",
+			pvcName:        "any-pvc",
+			expected:       false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ExclusionRegex = tt.exclusionRegex
+			pvc := &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: tt.pvcName,
+				},
+			}
+			result := pvcNameMatchesExclusion(pvc)
+			require.Equal(t, tt.expected, result)
+		})
+	}
+}
