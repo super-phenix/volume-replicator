@@ -3,12 +3,13 @@ package main
 import (
 	"context"
 	"flag"
+	"os"
+	"os/signal"
+
 	"github.com/skalanetworks/volume-replicator/internal/k8s"
 	"github.com/skalanetworks/volume-replicator/internal/replicator"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/klog/v2"
-	"os"
-	"os/signal"
 )
 
 func main() {
@@ -18,6 +19,7 @@ func main() {
 	var kubeconfig, namespace string
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "path to kubeconfig file")
 	flag.StringVar(&namespace, "namespace", os.Getenv("NAMESPACE"), "deployment namespace")
+	flag.StringVar(&replicator.ExclusionRegex, "exclusion-regex", os.Getenv("EXCLUSION_REGEX"), "regex to exclude PVCs from replication")
 	klog.InitFlags(nil)
 	flag.Parse()
 

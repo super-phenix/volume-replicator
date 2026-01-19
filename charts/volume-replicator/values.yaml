@@ -16,6 +16,12 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
+# Regex to exclude PVCs from being replicated based on their name
+# The following regex will exclude all PVCs that start with prime- to prevent them from being replicated
+# This is useful for temporary PVCs created by the Container Data Importer of Kubevirt
+# exclusionRegex: "^prime-.*$"
+exclusionRegex: ""
+
 # This section builds out the service account more information can be found here: https://kubernetes.io/docs/concepts/security/service-accounts/
 serviceAccount:
   # Specifies whether a service account should be created

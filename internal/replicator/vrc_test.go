@@ -191,11 +191,32 @@ func TestGetVolumeReplicationClass(t *testing.T) {
 			},
 			expectedResult: "",
 		},
+		{
+			name: "Excluded by name regex",
+			pvc: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "exclude-this-pvc",
+					Namespace: nsName,
+					Annotations: map[string]string{
+						constants.VrcValueAnnotation: vrcName,
+					},
+				},
+			},
+			expectedResult: "",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			clearNamespaceIndexer(t)
+
+			// Set ExclusionRegex specifically for each test case
+			if tt.name == "Excluded by name regex" {
+				ExclusionRegex = "exclude-.*"
+			} else {
+				ExclusionRegex = ""
+			}
+			defer func() { ExclusionRegex = "" }()
 
 			if tt.namespace != nil {
 				err := NamespaceInformer.Informer().GetIndexer().Add(tt.namespace)
