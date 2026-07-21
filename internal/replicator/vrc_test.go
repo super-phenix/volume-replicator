@@ -709,3 +709,84 @@ func TestFilterVrcFromSelector(t *testing.T) {
 		require.Nil(t, list)
 	})
 }
+
+func TestGetReplicationState(t *testing.T) {
+	_, _, informerFactory := setupTestEnvironment()
+	nsName := "test-ns"
+
+	tests := []struct {
+		name           string
+		pvc            *corev1.PersistentVolumeClaim
+		namespace      *corev1.Namespace
+		expectedResult string
+	}{
+		{
+			name: "Default value (primary)",
+			pvc: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pvc",
+					Namespace: nsName,
+				},
+			},
+			expectedResult: "primary",
+		},
+		{
+			name: "Override from Namespace",
+			pvc: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pvc",
+					Namespace: nsName,
+				},
+			},
+			namespace: &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: nsName,
+					Annotations: map[string]string{
+						constants.ReplicationStateAnnotation: "secondary",
+					},
+				},
+			},
+			expectedResult: "secondary",
+		},
+		{
+			name: "Override from PVC",
+			pvc: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pvc",
+					Namespace: nsName,
+					Annotations: map[string]string{
+						constants.ReplicationStateAnnotation: "primary",
+					},
+				},
+			},
+			namespace: &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: nsName,
+					Annotations: map[string]string{
+						constants.ReplicationStateAnnotation: "secondary",
+					},
+				},
+			},
+			expectedResult: "primary",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clearNamespaceIndexer(t)
+			if tt.namespace != nil {
+				err := informerFactory.Core().V1().Namespaces().Informer().GetIndexer().Add(tt.namespace)
+				require.NoError(t, err)
+			} else {
+				// Add a default namespace if not provided
+				err := informerFactory.Core().V1().Namespaces().Informer().GetIndexer().Add(&corev1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{Name: nsName},
+				})
+				require.NoError(t, err)
+			}
+
+			result := getReplicationState(tt.pvc)
+			require.Equal(t, tt.expectedResult, result)
+		})
+	}
+}

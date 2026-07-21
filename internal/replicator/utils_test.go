@@ -47,6 +47,11 @@ func TestCreateVolumeReplication(t *testing.T) {
 		},
 	}
 
+	// Add namespace to informer
+	_ = NamespaceInformer.Informer().GetIndexer().Add(&corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{Name: nsName},
+	})
+
 	t.Run("Successful creation", func(t *testing.T) {
 		err := createVolumeReplication(pvc)
 		require.NoError(t, err)
@@ -492,6 +497,11 @@ func TestIsVolumeReplicationCorrect(t *testing.T) {
 		},
 	}
 
+	// Add namespace to informer
+	_ = NamespaceInformer.Informer().GetIndexer().Add(&corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{Name: nsName},
+	})
+
 	tests := []struct {
 		name     string
 		vr       *unstructured.Unstructured
@@ -507,6 +517,7 @@ func TestIsVolumeReplicationCorrect(t *testing.T) {
 					},
 					"spec": map[string]any{
 						"volumeReplicationClass": vrcName,
+						"replicationState":       "primary",
 						"dataSource": map[string]any{
 							"apiGroup": "v1",
 							"kind":     "PersistentVolumeClaim",
@@ -516,6 +527,27 @@ func TestIsVolumeReplicationCorrect(t *testing.T) {
 				},
 			},
 			expected: true,
+		},
+		{
+			name: "replicationState mismatch",
+			vr: &unstructured.Unstructured{
+				Object: map[string]any{
+					"metadata": map[string]any{
+						"name":      pvcName,
+						"namespace": nsName,
+					},
+					"spec": map[string]any{
+						"volumeReplicationClass": vrcName,
+						"replicationState":       "secondary",
+						"dataSource": map[string]any{
+							"apiGroup": "v1",
+							"kind":     "PersistentVolumeClaim",
+							"name":     pvcName,
+						},
+					},
+				},
+			},
+			expected: false,
 		},
 		{
 			name: "volumeReplicationClass mismatch",
@@ -832,6 +864,17 @@ func TestIsPvcPaused(t *testing.T) {
 			},
 			namespace: pausedNs,
 			expected:  false, // PVC takes precedence, and invalid is not true
+		},
+		{
+			name: "PVC empty pause value, NS paused",
+			pvc: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:   nsName,
+					Annotations: map[string]string{constants.PauseAnnotation: ""},
+				},
+			},
+			namespace: pausedNs,
+			expected:  true, // It falls back to NS now
 		},
 	}
 
