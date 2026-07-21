@@ -30,7 +30,7 @@ func (c *Controller) Run(ctx context.Context, workers int) {
 	defer c.pvcQueue.ShutDown()
 	klog.Info("Starting replication controller")
 
-	for i := 0; i < workers; i++ {
+	for range workers {
 		go wait.UntilWithContext(ctx, c.runWorker, time.Second)
 	}
 

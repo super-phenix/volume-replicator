@@ -3,6 +3,7 @@ package replicator
 import (
 	"context"
 	"fmt"
+	"maps"
 	"regexp"
 
 	"github.com/super-phenix/volume-replicator/internal/constants"
@@ -68,29 +69,29 @@ func createVolumeReplication(pvc *corev1.PersistentVolumeClaim) error {
 	// Create an unstructured VolumeReplication with the same name and same metadata as the PVC
 	volumeReplication := &unstructured.Unstructured{}
 
-	annotations := make(map[string]interface{})
+	annotations := make(map[string]any)
 	for k, v := range pvc.Annotations {
 		annotations[k] = v
 	}
 
-	labels := make(map[string]interface{})
+	labels := make(map[string]any)
 	for k, v := range getLabelsWithParent(pvc.Labels, pvc.Name) {
 		labels[k] = v
 	}
 
-	volumeReplication.SetUnstructuredContent(map[string]interface{}{
+	volumeReplication.SetUnstructuredContent(map[string]any{
 		"apiVersion": fmt.Sprintf("%s/%s", VolumeReplicationResource.Group, VolumeReplicationResource.Version),
 		"kind":       "VolumeReplication",
-		"metadata": map[string]interface{}{
+		"metadata": map[string]any{
 			"name":        pvc.Name,
 			"namespace":   pvc.Namespace,
 			"annotations": annotations,
 			"labels":      labels,
 		},
-		"spec": map[string]interface{}{
+		"spec": map[string]any{
 			"volumeReplicationClass": getVolumeReplicationClass(pvc),
 			"replicationState":       "primary",
-			"dataSource": map[string]interface{}{
+			"dataSource": map[string]any{
 				"apiGroup": "v1",
 				"kind":     "PersistentVolumeClaim",
 				"name":     pvc.Name,
@@ -124,9 +125,9 @@ func isParentLabelPresent(labels map[string]string) bool {
 // getLabelsWithParent returns a new map of labels for a VolumeReplication with its parent PVC embedded.
 // It creates a copy of the input map to avoid side effects.
 func getLabelsWithParent(pvcLabels map[string]string, parent string) map[string]string {
-	res := make(map[string]string, len(pvcLabels)+1)
-	for k, v := range pvcLabels {
-		res[k] = v
+	res := maps.Clone(pvcLabels)
+	if res == nil {
+		res = make(map[string]string)
 	}
 	res[constants.ParentLabel] = parent
 	return res

@@ -2,6 +2,7 @@ package replicator
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -15,6 +16,7 @@ import (
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
+	k8s_testing "k8s.io/client-go/testing"
 )
 
 func TestReconcileVolumeReplication(t *testing.T) {
@@ -46,20 +48,20 @@ func TestReconcileVolumeReplication(t *testing.T) {
 	}
 
 	vr := &unstructured.Unstructured{}
-	vr.SetUnstructuredContent(map[string]interface{}{
+	vr.SetUnstructuredContent(map[string]any{
 		"apiVersion": fmt.Sprintf("%s/%s", VolumeReplicationResource.Group, VolumeReplicationResource.Version),
 		"kind":       "VolumeReplication",
-		"metadata": map[string]interface{}{
+		"metadata": map[string]any{
 			"name":      pvcName,
 			"namespace": nsName,
-			"labels": map[string]interface{}{
+			"labels": map[string]any{
 				constants.ParentLabel: pvcName,
 			},
 		},
-		"spec": map[string]interface{}{
+		"spec": map[string]any{
 			"volumeReplicationClass": vrcName,
 			"replicationState":       "primary",
-			"dataSource": map[string]interface{}{
+			"dataSource": map[string]any{
 				"apiGroup": "v1",
 				"kind":     "PersistentVolumeClaim",
 				"name":     pvcName,
@@ -80,13 +82,9 @@ func TestReconcileVolumeReplication(t *testing.T) {
 			},
 			verify: func(t *testing.T) {
 				actions := dynamicClient.Actions()
-				deleted := false
-				for _, action := range actions {
-					if action.GetVerb() == "delete" && action.GetResource().Resource == "volumereplications" {
-						deleted = true
-						break
-					}
-				}
+				deleted := slices.ContainsFunc(actions, func(action k8s_testing.Action) bool {
+					return action.GetVerb() == "delete" && action.GetResource().Resource == "volumereplications"
+				})
 				require.True(t, deleted, "VR should have been deleted")
 			},
 		},
@@ -103,13 +101,9 @@ func TestReconcileVolumeReplication(t *testing.T) {
 			},
 			verify: func(t *testing.T) {
 				actions := dynamicClient.Actions()
-				deleted := false
-				for _, action := range actions {
-					if action.GetVerb() == "delete" && action.GetResource().Resource == "volumereplications" {
-						deleted = true
-						break
-					}
-				}
+				deleted := slices.ContainsFunc(actions, func(action k8s_testing.Action) bool {
+					return action.GetVerb() == "delete" && action.GetResource().Resource == "volumereplications"
+				})
 				require.True(t, deleted, "VR should have been deleted")
 			},
 		},
@@ -143,13 +137,9 @@ func TestReconcileVolumeReplication(t *testing.T) {
 			},
 			verify: func(t *testing.T) {
 				actions := dynamicClient.Actions()
-				deleted := false
-				for _, action := range actions {
-					if action.GetVerb() == "delete" && action.GetResource().Resource == "volumereplications" {
-						deleted = true
-						break
-					}
-				}
+				deleted := slices.ContainsFunc(actions, func(action k8s_testing.Action) bool {
+					return action.GetVerb() == "delete" && action.GetResource().Resource == "volumereplications"
+				})
 				require.True(t, deleted, "VR should have been deleted")
 			},
 		},
@@ -165,13 +155,9 @@ func TestReconcileVolumeReplication(t *testing.T) {
 			},
 			verify: func(t *testing.T) {
 				actions := dynamicClient.Actions()
-				deleted := false
-				for _, action := range actions {
-					if action.GetVerb() == "delete" && action.GetResource().Resource == "volumereplications" {
-						deleted = true
-						break
-					}
-				}
+				deleted := slices.ContainsFunc(actions, func(action k8s_testing.Action) bool {
+					return action.GetVerb() == "delete" && action.GetResource().Resource == "volumereplications"
+				})
 				require.True(t, deleted, "VR should have been deleted")
 			},
 		},
@@ -183,13 +169,9 @@ func TestReconcileVolumeReplication(t *testing.T) {
 			},
 			verify: func(t *testing.T) {
 				actions := dynamicClient.Actions()
-				created := false
-				for _, action := range actions {
-					if action.GetVerb() == "create" && action.GetResource().Resource == "volumereplications" {
-						created = true
-						break
-					}
-				}
+				created := slices.ContainsFunc(actions, func(action k8s_testing.Action) bool {
+					return action.GetVerb() == "create" && action.GetResource().Resource == "volumereplications"
+				})
 				require.True(t, created, "VR should have been created")
 			},
 		},
@@ -254,13 +236,9 @@ func TestReconcileVolumeReplication(t *testing.T) {
 			},
 			verify: func(t *testing.T) {
 				actions := dynamicClient.Actions()
-				deleted := false
-				for _, action := range actions {
-					if action.GetVerb() == "delete" && action.GetResource().Resource == "volumereplications" {
-						deleted = true
-						break
-					}
-				}
+				deleted := slices.ContainsFunc(actions, func(action k8s_testing.Action) bool {
+					return action.GetVerb() == "delete" && action.GetResource().Resource == "volumereplications"
+				})
 				require.True(t, deleted, "VR should have been deleted despite PVC pause")
 			},
 		},
@@ -279,13 +257,9 @@ func TestReconcileVolumeReplication(t *testing.T) {
 			},
 			verify: func(t *testing.T) {
 				actions := dynamicClient.Actions()
-				deleted := false
-				for _, action := range actions {
-					if action.GetVerb() == "delete" && action.GetResource().Resource == "volumereplications" {
-						deleted = true
-						break
-					}
-				}
+				deleted := slices.ContainsFunc(actions, func(action k8s_testing.Action) bool {
+					return action.GetVerb() == "delete" && action.GetResource().Resource == "volumereplications"
+				})
 				require.True(t, deleted, "VR should have been deleted despite namespace pause")
 			},
 		},
@@ -309,13 +283,9 @@ func TestReconcileVolumeReplication(t *testing.T) {
 			},
 			verify: func(t *testing.T) {
 				actions := dynamicClient.Actions()
-				deleted := false
-				for _, action := range actions {
-					if action.GetVerb() == "delete" && action.GetResource().Resource == "volumereplications" {
-						deleted = true
-						break
-					}
-				}
+				deleted := slices.ContainsFunc(actions, func(action k8s_testing.Action) bool {
+					return action.GetVerb() == "delete" && action.GetResource().Resource == "volumereplications"
+				})
 				require.True(t, deleted, "VR should have been deleted despite namespace pause")
 			},
 		},
@@ -356,13 +326,9 @@ func TestReconcileVolumeReplication(t *testing.T) {
 			},
 			verify: func(t *testing.T) {
 				actions := dynamicClient.Actions()
-				created := false
-				for _, action := range actions {
-					if action.GetVerb() == "create" && action.GetResource().Resource == "volumereplications" {
-						created = true
-						break
-					}
-				}
+				created := slices.ContainsFunc(actions, func(action k8s_testing.Action) bool {
+					return action.GetVerb() == "create" && action.GetResource().Resource == "volumereplications"
+				})
 				require.True(t, created, "VR should have been created")
 			},
 		},

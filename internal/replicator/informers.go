@@ -71,7 +71,7 @@ func (c *Controller) createPvcInformer(factory informers.SharedInformerFactory) 
 		UpdateFunc: func(_, newObj any) {
 			c.pvcUpdate(newObj.(*corev1.PersistentVolumeClaim))
 		},
-		DeleteFunc: func(obj interface{}) {
+		DeleteFunc: func(obj any) {
 			c.pvcUpdate(obj.(*corev1.PersistentVolumeClaim))
 		},
 	})

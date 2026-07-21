@@ -1,7 +1,6 @@
 package replicator
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -63,26 +62,26 @@ func TestGetVolumeReplicationClass(t *testing.T) {
 			},
 		},
 	}
-	_, _ = client.StorageV1().StorageClasses().Create(context.Background(), stc, metav1.CreateOptions{})
+	_, _ = client.StorageV1().StorageClasses().Create(t.Context(), stc, metav1.CreateOptions{})
 
 	// Create a VRC that matches the selector
 	vrc := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": fmt.Sprintf("%s/%s", VolumeReplicationResource.Group, VolumeReplicationResource.Version),
 			"kind":       "VolumeReplicationClass",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name": "vrc-matched",
-				"labels": map[string]interface{}{
+				"labels": map[string]any{
 					constants.StorageClassGroup:     groupName,
 					constants.VrcSelectorAnnotation: selectorValue,
 				},
 			},
-			"spec": map[string]interface{}{
+			"spec": map[string]any{
 				"provisioner": provisionerName,
 			},
 		},
 	}
-	_, _ = dynamicClient.Resource(VolumeReplicationClassesResource).Create(context.Background(), vrc, metav1.CreateOptions{})
+	_, _ = dynamicClient.Resource(VolumeReplicationClassesResource).Create(t.Context(), vrc, metav1.CreateOptions{})
 
 	tests := []struct {
 		name           string
@@ -451,22 +450,22 @@ func TestGetVolumeReplicationClassFromSelector(t *testing.T) {
 	provisionerName := "test-provisioner"
 
 	vrc := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": fmt.Sprintf("%s/%s", VolumeReplicationResource.Group, VolumeReplicationResource.Version),
 			"kind":       "VolumeReplicationClass",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name": "vrc-matched",
-				"labels": map[string]interface{}{
+				"labels": map[string]any{
 					constants.StorageClassGroup:     groupName,
 					constants.VrcSelectorAnnotation: selectorValue,
 				},
 			},
-			"spec": map[string]interface{}{
+			"spec": map[string]any{
 				"provisioner": provisionerName,
 			},
 		},
 	}
-	_, _ = dynamicClient.Resource(VolumeReplicationClassesResource).Create(context.Background(), vrc, metav1.CreateOptions{})
+	_, _ = dynamicClient.Resource(VolumeReplicationClassesResource).Create(t.Context(), vrc, metav1.CreateOptions{})
 
 	stc := &storagev1.StorageClass{
 		ObjectMeta: metav1.ObjectMeta{
@@ -476,7 +475,7 @@ func TestGetVolumeReplicationClassFromSelector(t *testing.T) {
 			},
 		},
 	}
-	_, _ = client.StorageV1().StorageClasses().Create(context.Background(), stc, metav1.CreateOptions{})
+	_, _ = client.StorageV1().StorageClasses().Create(t.Context(), stc, metav1.CreateOptions{})
 
 	t.Run("PVC without VrcSelectorAnnotation", func(t *testing.T) {
 		pvc := &corev1.PersistentVolumeClaim{
@@ -527,9 +526,9 @@ func TestGetVolumeReplicationClassFromSelector(t *testing.T) {
 				Name: stcNoGroup,
 			},
 		}
-		_, _ = client.StorageV1().StorageClasses().Create(context.Background(), stc, metav1.CreateOptions{})
+		_, _ = client.StorageV1().StorageClasses().Create(t.Context(), stc, metav1.CreateOptions{})
 		defer func() {
-			_ = client.StorageV1().StorageClasses().Delete(context.Background(), stcNoGroup, metav1.DeleteOptions{})
+			_ = client.StorageV1().StorageClasses().Delete(t.Context(), stcNoGroup, metav1.DeleteOptions{})
 		}()
 
 		pvc := &corev1.PersistentVolumeClaim{
@@ -563,24 +562,24 @@ func TestGetVolumeReplicationClassFromSelector(t *testing.T) {
 
 	t.Run("Multiple matching VRCs found", func(t *testing.T) {
 		vrc2 := &unstructured.Unstructured{
-			Object: map[string]interface{}{
+			Object: map[string]any{
 				"apiVersion": fmt.Sprintf("%s/%s", VolumeReplicationResource.Group, VolumeReplicationResource.Version),
 				"kind":       "VolumeReplicationClass",
-				"metadata": map[string]interface{}{
+				"metadata": map[string]any{
 					"name": "vrc-matched-2",
-					"labels": map[string]interface{}{
+					"labels": map[string]any{
 						constants.StorageClassGroup:     groupName,
 						constants.VrcSelectorAnnotation: selectorValue,
 					},
 				},
-				"spec": map[string]interface{}{
+				"spec": map[string]any{
 					"provisioner": provisionerName,
 				},
 			},
 		}
-		_, _ = dynamicClient.Resource(VolumeReplicationClassesResource).Create(context.Background(), vrc2, metav1.CreateOptions{})
+		_, _ = dynamicClient.Resource(VolumeReplicationClassesResource).Create(t.Context(), vrc2, metav1.CreateOptions{})
 		defer func() {
-			_ = dynamicClient.Resource(VolumeReplicationClassesResource).Delete(context.Background(), "vrc-matched-2", metav1.DeleteOptions{})
+			_ = dynamicClient.Resource(VolumeReplicationClassesResource).Delete(t.Context(), "vrc-matched-2", metav1.DeleteOptions{})
 		}()
 
 		pvc := &corev1.PersistentVolumeClaim{
@@ -637,41 +636,41 @@ func TestFilterVrcFromSelector(t *testing.T) {
 	k8s.DynamicClientSet = dynamicClient
 
 	vrc1 := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": fmt.Sprintf("%s/%s", VolumeReplicationResource.Group, VolumeReplicationResource.Version),
 			"kind":       "VolumeReplicationClass",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name": "vrc-1",
-				"labels": map[string]interface{}{
+				"labels": map[string]any{
 					constants.StorageClassGroup:     "group-1",
 					constants.VrcSelectorAnnotation: "match",
 				},
 			},
-			"spec": map[string]interface{}{
+			"spec": map[string]any{
 				"provisioner": "provisioner-1",
 			},
 		},
 	}
 
 	vrc2 := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": fmt.Sprintf("%s/%s", VolumeReplicationResource.Group, VolumeReplicationResource.Version),
 			"kind":       "VolumeReplicationClass",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name": "vrc-2",
-				"labels": map[string]interface{}{
+				"labels": map[string]any{
 					constants.StorageClassGroup:     "group-2",
 					constants.VrcSelectorAnnotation: "no-match",
 				},
 			},
-			"spec": map[string]interface{}{
+			"spec": map[string]any{
 				"provisioner": "provisioner-2",
 			},
 		},
 	}
 
-	_, _ = dynamicClient.Resource(VolumeReplicationClassesResource).Create(context.Background(), vrc1, metav1.CreateOptions{})
-	_, _ = dynamicClient.Resource(VolumeReplicationClassesResource).Create(context.Background(), vrc2, metav1.CreateOptions{})
+	_, _ = dynamicClient.Resource(VolumeReplicationClassesResource).Create(t.Context(), vrc1, metav1.CreateOptions{})
+	_, _ = dynamicClient.Resource(VolumeReplicationClassesResource).Create(t.Context(), vrc2, metav1.CreateOptions{})
 
 	t.Run("Match found with both labels and provisioner", func(t *testing.T) {
 		list, err := filterVrcFromSelector("group-1", "match", "provisioner-1")

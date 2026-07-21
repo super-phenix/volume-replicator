@@ -1,7 +1,6 @@
 package replicator
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -53,7 +52,7 @@ func TestCreateVolumeReplication(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify creation
-		vr, err := dynamicClient.Resource(VolumeReplicationResource).Namespace(nsName).Get(context.Background(), pvcName, metav1.GetOptions{})
+		vr, err := dynamicClient.Resource(VolumeReplicationResource).Namespace(nsName).Get(t.Context(), pvcName, metav1.GetOptions{})
 		require.NoError(t, err)
 		require.NotNil(t, vr)
 
@@ -66,12 +65,12 @@ func TestCreateVolumeReplication(t *testing.T) {
 		require.Equal(t, pvcName, vr.GetLabels()[constants.ParentLabel])
 
 		// Check spec
-		spec, ok := vr.Object["spec"].(map[string]interface{})
+		spec, ok := vr.Object["spec"].(map[string]any)
 		require.True(t, ok)
 		require.Equal(t, vrcName, spec["volumeReplicationClass"])
 		require.Equal(t, "primary", spec["replicationState"])
 
-		dataSource, ok := spec["dataSource"].(map[string]interface{})
+		dataSource, ok := spec["dataSource"].(map[string]any)
 		require.True(t, ok)
 		require.Equal(t, "v1", dataSource["apiGroup"])
 		require.Equal(t, "PersistentVolumeClaim", dataSource["kind"])
@@ -198,7 +197,7 @@ func TestGetStorageClassLabels(t *testing.T) {
 				Labels: labels,
 			},
 		}
-		_, _ = client.StorageV1().StorageClasses().Create(context.Background(), stc, metav1.CreateOptions{})
+		_, _ = client.StorageV1().StorageClasses().Create(t.Context(), stc, metav1.CreateOptions{})
 
 		pvc := &corev1.PersistentVolumeClaim{
 			Spec: corev1.PersistentVolumeClaimSpec{
@@ -209,7 +208,7 @@ func TestGetStorageClassLabels(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, labels, result)
 
-		_ = client.StorageV1().StorageClasses().Delete(context.Background(), stcName, metav1.DeleteOptions{})
+		_ = client.StorageV1().StorageClasses().Delete(t.Context(), stcName, metav1.DeleteOptions{})
 	})
 
 	t.Run("StorageClass exists and has no labels", func(t *testing.T) {
@@ -218,7 +217,7 @@ func TestGetStorageClassLabels(t *testing.T) {
 				Name: stcName,
 			},
 		}
-		_, _ = client.StorageV1().StorageClasses().Create(context.Background(), stc, metav1.CreateOptions{})
+		_, _ = client.StorageV1().StorageClasses().Create(t.Context(), stc, metav1.CreateOptions{})
 
 		pvc := &corev1.PersistentVolumeClaim{
 			Spec: corev1.PersistentVolumeClaimSpec{
@@ -229,7 +228,7 @@ func TestGetStorageClassLabels(t *testing.T) {
 		require.NoError(t, err)
 		require.Nil(t, result)
 
-		_ = client.StorageV1().StorageClasses().Delete(context.Background(), stcName, metav1.DeleteOptions{})
+		_ = client.StorageV1().StorageClasses().Delete(t.Context(), stcName, metav1.DeleteOptions{})
 	})
 
 	t.Run("StorageClass does not exist", func(t *testing.T) {
@@ -269,7 +268,7 @@ func TestGetStorageClassGroup(t *testing.T) {
 				Name: stcName,
 			},
 		}
-		_, _ = client.StorageV1().StorageClasses().Create(context.Background(), stc, metav1.CreateOptions{})
+		_, _ = client.StorageV1().StorageClasses().Create(t.Context(), stc, metav1.CreateOptions{})
 
 		pvc := &corev1.PersistentVolumeClaim{
 			Spec: corev1.PersistentVolumeClaimSpec{
@@ -280,7 +279,7 @@ func TestGetStorageClassGroup(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "", result)
 
-		_ = client.StorageV1().StorageClasses().Delete(context.Background(), stcName, metav1.DeleteOptions{})
+		_ = client.StorageV1().StorageClasses().Delete(t.Context(), stcName, metav1.DeleteOptions{})
 	})
 
 	t.Run("StorageClass has group label", func(t *testing.T) {
@@ -292,7 +291,7 @@ func TestGetStorageClassGroup(t *testing.T) {
 				},
 			},
 		}
-		_, _ = client.StorageV1().StorageClasses().Create(context.Background(), stc, metav1.CreateOptions{})
+		_, _ = client.StorageV1().StorageClasses().Create(t.Context(), stc, metav1.CreateOptions{})
 
 		pvc := &corev1.PersistentVolumeClaim{
 			Spec: corev1.PersistentVolumeClaimSpec{
@@ -303,7 +302,7 @@ func TestGetStorageClassGroup(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, groupName, result)
 
-		_ = client.StorageV1().StorageClasses().Delete(context.Background(), stcName, metav1.DeleteOptions{})
+		_ = client.StorageV1().StorageClasses().Delete(t.Context(), stcName, metav1.DeleteOptions{})
 	})
 
 	t.Run("StorageClass does not exist", func(t *testing.T) {
@@ -406,13 +405,13 @@ func TestCleanupVolumeReplication(t *testing.T) {
 		vr.SetName(vrName)
 		vr.SetNamespace(nsName)
 
-		_, err := dynamicClient.Resource(VolumeReplicationResource).Namespace(nsName).Create(context.Background(), vr, metav1.CreateOptions{})
+		_, err := dynamicClient.Resource(VolumeReplicationResource).Namespace(nsName).Create(t.Context(), vr, metav1.CreateOptions{})
 		require.NoError(t, err)
 
 		cleanupVolumeReplication(vrName, nsName)
 
 		// Verify deletion
-		_, err = dynamicClient.Resource(VolumeReplicationResource).Namespace(nsName).Get(context.Background(), vrName, metav1.GetOptions{})
+		_, err = dynamicClient.Resource(VolumeReplicationResource).Namespace(nsName).Get(t.Context(), vrName, metav1.GetOptions{})
 		require.Error(t, err)
 		require.True(t, errors.IsNotFound(err))
 	})
@@ -445,10 +444,10 @@ func TestGetVolumeReplication(t *testing.T) {
 	key := ns + "/" + name
 
 	vr := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": "replication.storage.openshift.io/v1alpha1",
 			"kind":       "VolumeReplication",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":      name,
 				"namespace": ns,
 			},
@@ -501,14 +500,14 @@ func TestIsVolumeReplicationCorrect(t *testing.T) {
 		{
 			name: "All fields match",
 			vr: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
 						"name":      pvcName,
 						"namespace": nsName,
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"volumeReplicationClass": vrcName,
-						"dataSource": map[string]interface{}{
+						"dataSource": map[string]any{
 							"apiGroup": "v1",
 							"kind":     "PersistentVolumeClaim",
 							"name":     pvcName,
@@ -521,14 +520,14 @@ func TestIsVolumeReplicationCorrect(t *testing.T) {
 		{
 			name: "volumeReplicationClass mismatch",
 			vr: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
 						"name":      pvcName,
 						"namespace": nsName,
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"volumeReplicationClass": "wrong-vrc",
-						"dataSource": map[string]interface{}{
+						"dataSource": map[string]any{
 							"apiGroup": "v1",
 							"kind":     "PersistentVolumeClaim",
 							"name":     pvcName,
@@ -541,14 +540,14 @@ func TestIsVolumeReplicationCorrect(t *testing.T) {
 		{
 			name: "dataSource apiGroup mismatch",
 			vr: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
 						"name":      pvcName,
 						"namespace": nsName,
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"volumeReplicationClass": vrcName,
-						"dataSource": map[string]interface{}{
+						"dataSource": map[string]any{
 							"apiGroup": "wrong-group",
 							"kind":     "PersistentVolumeClaim",
 							"name":     pvcName,
@@ -561,14 +560,14 @@ func TestIsVolumeReplicationCorrect(t *testing.T) {
 		{
 			name: "dataSource kind mismatch",
 			vr: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
 						"name":      pvcName,
 						"namespace": nsName,
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"volumeReplicationClass": vrcName,
-						"dataSource": map[string]interface{}{
+						"dataSource": map[string]any{
 							"apiGroup": "v1",
 							"kind":     "WrongKind",
 							"name":     pvcName,
@@ -581,14 +580,14 @@ func TestIsVolumeReplicationCorrect(t *testing.T) {
 		{
 			name: "dataSource name mismatch",
 			vr: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
 						"name":      pvcName,
 						"namespace": nsName,
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"volumeReplicationClass": vrcName,
-						"dataSource": map[string]interface{}{
+						"dataSource": map[string]any{
 							"apiGroup": "v1",
 							"kind":     "PersistentVolumeClaim",
 							"name":     "wrong-pvc-name",
