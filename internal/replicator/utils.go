@@ -3,10 +3,11 @@ package replicator
 import (
 	"context"
 	"fmt"
+	"maps"
 	"regexp"
 
-	"github.com/skalanetworks/volume-replicator/internal/constants"
-	"github.com/skalanetworks/volume-replicator/internal/k8s"
+	"github.com/super-phenix/volume-replicator/internal/constants"
+	"github.com/super-phenix/volume-replicator/internal/k8s"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -68,29 +69,29 @@ func createVolumeReplication(pvc *corev1.PersistentVolumeClaim) error {
 	// Create an unstructured VolumeReplication with the same name and same metadata as the PVC
 	volumeReplication := &unstructured.Unstructured{}
 
-	annotations := make(map[string]interface{})
+	annotations := make(map[string]any)
 	for k, v := range pvc.Annotations {
 		annotations[k] = v
 	}
 
-	labels := make(map[string]interface{})
+	labels := make(map[string]any)
 	for k, v := range getLabelsWithParent(pvc.Labels, pvc.Name) {
 		labels[k] = v
 	}
 
-	volumeReplication.SetUnstructuredContent(map[string]interface{}{
+	volumeReplication.SetUnstructuredContent(map[string]any{
 		"apiVersion": fmt.Sprintf("%s/%s", VolumeReplicationResource.Group, VolumeReplicationResource.Version),
 		"kind":       "VolumeReplication",
-		"metadata": map[string]interface{}{
+		"metadata": map[string]any{
 			"name":        pvc.Name,
 			"namespace":   pvc.Namespace,
 			"annotations": annotations,
 			"labels":      labels,
 		},
-		"spec": map[string]interface{}{
+		"spec": map[string]any{
 			"volumeReplicationClass": getVolumeReplicationClass(pvc),
 			"replicationState":       "primary",
-			"dataSource": map[string]interface{}{
+			"dataSource": map[string]any{
 				"apiGroup": "v1",
 				"kind":     "PersistentVolumeClaim",
 				"name":     pvc.Name,
@@ -124,9 +125,9 @@ func isParentLabelPresent(labels map[string]string) bool {
 // getLabelsWithParent returns a new map of labels for a VolumeReplication with its parent PVC embedded.
 // It creates a copy of the input map to avoid side effects.
 func getLabelsWithParent(pvcLabels map[string]string, parent string) map[string]string {
-	res := make(map[string]string, len(pvcLabels)+1)
-	for k, v := range pvcLabels {
-		res[k] = v
+	res := maps.Clone(pvcLabels)
+	if res == nil {
+		res = make(map[string]string)
 	}
 	res[constants.ParentLabel] = parent
 	return res
@@ -170,6 +171,30 @@ func getPvcProvisioner(pvc *corev1.PersistentVolumeClaim) string {
 
 	// Fallback to the deprecated annotation
 	return pvc.Annotations[constants.DeprecatedStorageProvisionerAnnotation]
+}
+
+// isPvcPaused returns whether the replication for a PVC is paused
+// The PVC-level annotation takes precedence over the namespace-level annotation:
+// any explicit value on the PVC (even "false") short-circuits the namespace lookup
+func isPvcPaused(pvc *corev1.PersistentVolumeClaim, namespace string) bool {
+	if pvc != nil {
+		// If the PVC has the annotation specified, it has priority over the one of the namespace
+		if value, ok := pvc.Annotations[constants.PauseAnnotation]; ok {
+			return value == "true"
+		}
+	}
+
+	return isNamespacePaused(namespace)
+}
+
+// isNamespacePaused returns whether replication is paused at the namespace level
+func isNamespacePaused(namespace string) bool {
+	ns, err := NamespaceInformer.Lister().Get(namespace)
+	if err != nil {
+		return false
+	}
+
+	return ns.Annotations[constants.PauseAnnotation] == "true"
 }
 
 // pvcNameMatchesExclusion returns whether a PVC has a name matching the exclusion regex

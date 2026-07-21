@@ -11,6 +11,7 @@ the actual replication itself.
 - **Automated Lifecycle**: Automatically creates `VolumeReplication` objects for PVCs with the appropriate annotation.
 - **Inheritance**: Can inherit the `VolumeReplicationClass` from the PVC or from the PVC's namespace (if not specified on the PVC).
 - **Exclusion by Name**: Supports excluding PVCs from replication using a global regular expression.
+- **Pause**: Supports pausing replication on a per-PVC or per-namespace basis via an annotation, freezing `VolumeReplication` objects in place.
 - **VRC Selector**: Supports selecting a `VolumeReplicationClass` using a selector, allowing for more dynamic configuration based on `StorageClass` groups.
 - **Cleanup**: Automatically deletes `VolumeReplication` resources when their parent PVC is deleted or when the replication annotation is removed.
 - **Leader Election**: Supports high availability with leader election to ensure only one instance is active at a time.
@@ -148,6 +149,39 @@ If the annotation is modified, the `VolumeReplication` is updated accordingly wi
 
 If the annotation is deleted on both the PVC and the namespace, the VolumeReplication is deleted.
 
+### Pausing replication
+
+Replication can be paused for a specific PVC or for an entire namespace using the `replication.superphenix.net/pause: "true"` annotation. In both cases, the controller skips creating or updating `VolumeReplication` objects, but it **still deletes** the `VolumeReplication` when the PVC itself is deleted.
+
+Any other value (including `"false"` or the absence of the annotation) means replication is not paused.
+
+The annotation on the PVC takes precedence over the annotation on the namespace, so a PVC can opt back into normal reconciliation by setting `replication.superphenix.net/pause: "false"` even if its namespace is paused.
+
+Example — pausing an entire namespace:
+
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: my-namespace
+  annotations:
+    replication.superphenix.net/pause: "true"
+```
+
+Example — pausing a single PVC:
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: my-pvc
+  annotations:
+    replication.superphenix.net/pause: "true"
+```
+
+> [!NOTE]
+> While paused, existing `VolumeReplication` objects are frozen in their current state. Unpausing resumes normal reconciliation.
+
 ### Excluding PVCs from replication
 
 It is possible to exclude some PVCs from being replicated, even if they have the correct annotations (or their namespace has them).
@@ -177,7 +211,7 @@ Standard `klog` flags are also supported for logging configuration.
 
 ### Prerequisites
 
-- Go 1.22+
+- Go 1.25+
 - Docker (optional, for containerized builds)
 
 ### Building the binary

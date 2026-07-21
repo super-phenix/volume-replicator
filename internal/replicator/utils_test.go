@@ -1,13 +1,12 @@
 package replicator
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
-	"github.com/skalanetworks/volume-replicator/internal/constants"
-	"github.com/skalanetworks/volume-replicator/internal/k8s"
 	"github.com/stretchr/testify/require"
+	"github.com/super-phenix/volume-replicator/internal/constants"
+	"github.com/super-phenix/volume-replicator/internal/k8s"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -53,7 +52,7 @@ func TestCreateVolumeReplication(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify creation
-		vr, err := dynamicClient.Resource(VolumeReplicationResource).Namespace(nsName).Get(context.Background(), pvcName, metav1.GetOptions{})
+		vr, err := dynamicClient.Resource(VolumeReplicationResource).Namespace(nsName).Get(t.Context(), pvcName, metav1.GetOptions{})
 		require.NoError(t, err)
 		require.NotNil(t, vr)
 
@@ -66,12 +65,12 @@ func TestCreateVolumeReplication(t *testing.T) {
 		require.Equal(t, pvcName, vr.GetLabels()[constants.ParentLabel])
 
 		// Check spec
-		spec, ok := vr.Object["spec"].(map[string]interface{})
+		spec, ok := vr.Object["spec"].(map[string]any)
 		require.True(t, ok)
 		require.Equal(t, vrcName, spec["volumeReplicationClass"])
 		require.Equal(t, "primary", spec["replicationState"])
 
-		dataSource, ok := spec["dataSource"].(map[string]interface{})
+		dataSource, ok := spec["dataSource"].(map[string]any)
 		require.True(t, ok)
 		require.Equal(t, "v1", dataSource["apiGroup"])
 		require.Equal(t, "PersistentVolumeClaim", dataSource["kind"])
@@ -198,7 +197,7 @@ func TestGetStorageClassLabels(t *testing.T) {
 				Labels: labels,
 			},
 		}
-		_, _ = client.StorageV1().StorageClasses().Create(context.Background(), stc, metav1.CreateOptions{})
+		_, _ = client.StorageV1().StorageClasses().Create(t.Context(), stc, metav1.CreateOptions{})
 
 		pvc := &corev1.PersistentVolumeClaim{
 			Spec: corev1.PersistentVolumeClaimSpec{
@@ -209,7 +208,7 @@ func TestGetStorageClassLabels(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, labels, result)
 
-		_ = client.StorageV1().StorageClasses().Delete(context.Background(), stcName, metav1.DeleteOptions{})
+		_ = client.StorageV1().StorageClasses().Delete(t.Context(), stcName, metav1.DeleteOptions{})
 	})
 
 	t.Run("StorageClass exists and has no labels", func(t *testing.T) {
@@ -218,7 +217,7 @@ func TestGetStorageClassLabels(t *testing.T) {
 				Name: stcName,
 			},
 		}
-		_, _ = client.StorageV1().StorageClasses().Create(context.Background(), stc, metav1.CreateOptions{})
+		_, _ = client.StorageV1().StorageClasses().Create(t.Context(), stc, metav1.CreateOptions{})
 
 		pvc := &corev1.PersistentVolumeClaim{
 			Spec: corev1.PersistentVolumeClaimSpec{
@@ -229,7 +228,7 @@ func TestGetStorageClassLabels(t *testing.T) {
 		require.NoError(t, err)
 		require.Nil(t, result)
 
-		_ = client.StorageV1().StorageClasses().Delete(context.Background(), stcName, metav1.DeleteOptions{})
+		_ = client.StorageV1().StorageClasses().Delete(t.Context(), stcName, metav1.DeleteOptions{})
 	})
 
 	t.Run("StorageClass does not exist", func(t *testing.T) {
@@ -269,7 +268,7 @@ func TestGetStorageClassGroup(t *testing.T) {
 				Name: stcName,
 			},
 		}
-		_, _ = client.StorageV1().StorageClasses().Create(context.Background(), stc, metav1.CreateOptions{})
+		_, _ = client.StorageV1().StorageClasses().Create(t.Context(), stc, metav1.CreateOptions{})
 
 		pvc := &corev1.PersistentVolumeClaim{
 			Spec: corev1.PersistentVolumeClaimSpec{
@@ -280,7 +279,7 @@ func TestGetStorageClassGroup(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "", result)
 
-		_ = client.StorageV1().StorageClasses().Delete(context.Background(), stcName, metav1.DeleteOptions{})
+		_ = client.StorageV1().StorageClasses().Delete(t.Context(), stcName, metav1.DeleteOptions{})
 	})
 
 	t.Run("StorageClass has group label", func(t *testing.T) {
@@ -292,7 +291,7 @@ func TestGetStorageClassGroup(t *testing.T) {
 				},
 			},
 		}
-		_, _ = client.StorageV1().StorageClasses().Create(context.Background(), stc, metav1.CreateOptions{})
+		_, _ = client.StorageV1().StorageClasses().Create(t.Context(), stc, metav1.CreateOptions{})
 
 		pvc := &corev1.PersistentVolumeClaim{
 			Spec: corev1.PersistentVolumeClaimSpec{
@@ -303,7 +302,7 @@ func TestGetStorageClassGroup(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, groupName, result)
 
-		_ = client.StorageV1().StorageClasses().Delete(context.Background(), stcName, metav1.DeleteOptions{})
+		_ = client.StorageV1().StorageClasses().Delete(t.Context(), stcName, metav1.DeleteOptions{})
 	})
 
 	t.Run("StorageClass does not exist", func(t *testing.T) {
@@ -406,13 +405,13 @@ func TestCleanupVolumeReplication(t *testing.T) {
 		vr.SetName(vrName)
 		vr.SetNamespace(nsName)
 
-		_, err := dynamicClient.Resource(VolumeReplicationResource).Namespace(nsName).Create(context.Background(), vr, metav1.CreateOptions{})
+		_, err := dynamicClient.Resource(VolumeReplicationResource).Namespace(nsName).Create(t.Context(), vr, metav1.CreateOptions{})
 		require.NoError(t, err)
 
 		cleanupVolumeReplication(vrName, nsName)
 
 		// Verify deletion
-		_, err = dynamicClient.Resource(VolumeReplicationResource).Namespace(nsName).Get(context.Background(), vrName, metav1.GetOptions{})
+		_, err = dynamicClient.Resource(VolumeReplicationResource).Namespace(nsName).Get(t.Context(), vrName, metav1.GetOptions{})
 		require.Error(t, err)
 		require.True(t, errors.IsNotFound(err))
 	})
@@ -445,10 +444,10 @@ func TestGetVolumeReplication(t *testing.T) {
 	key := ns + "/" + name
 
 	vr := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": "replication.storage.openshift.io/v1alpha1",
 			"kind":       "VolumeReplication",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":      name,
 				"namespace": ns,
 			},
@@ -501,14 +500,14 @@ func TestIsVolumeReplicationCorrect(t *testing.T) {
 		{
 			name: "All fields match",
 			vr: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
 						"name":      pvcName,
 						"namespace": nsName,
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"volumeReplicationClass": vrcName,
-						"dataSource": map[string]interface{}{
+						"dataSource": map[string]any{
 							"apiGroup": "v1",
 							"kind":     "PersistentVolumeClaim",
 							"name":     pvcName,
@@ -521,14 +520,14 @@ func TestIsVolumeReplicationCorrect(t *testing.T) {
 		{
 			name: "volumeReplicationClass mismatch",
 			vr: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
 						"name":      pvcName,
 						"namespace": nsName,
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"volumeReplicationClass": "wrong-vrc",
-						"dataSource": map[string]interface{}{
+						"dataSource": map[string]any{
 							"apiGroup": "v1",
 							"kind":     "PersistentVolumeClaim",
 							"name":     pvcName,
@@ -541,14 +540,14 @@ func TestIsVolumeReplicationCorrect(t *testing.T) {
 		{
 			name: "dataSource apiGroup mismatch",
 			vr: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
 						"name":      pvcName,
 						"namespace": nsName,
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"volumeReplicationClass": vrcName,
-						"dataSource": map[string]interface{}{
+						"dataSource": map[string]any{
 							"apiGroup": "wrong-group",
 							"kind":     "PersistentVolumeClaim",
 							"name":     pvcName,
@@ -561,14 +560,14 @@ func TestIsVolumeReplicationCorrect(t *testing.T) {
 		{
 			name: "dataSource kind mismatch",
 			vr: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
 						"name":      pvcName,
 						"namespace": nsName,
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"volumeReplicationClass": vrcName,
-						"dataSource": map[string]interface{}{
+						"dataSource": map[string]any{
 							"apiGroup": "v1",
 							"kind":     "WrongKind",
 							"name":     pvcName,
@@ -581,14 +580,14 @@ func TestIsVolumeReplicationCorrect(t *testing.T) {
 		{
 			name: "dataSource name mismatch",
 			vr: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
+				Object: map[string]any{
+					"metadata": map[string]any{
 						"name":      pvcName,
 						"namespace": nsName,
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"volumeReplicationClass": vrcName,
-						"dataSource": map[string]interface{}{
+						"dataSource": map[string]any{
 							"apiGroup": "v1",
 							"kind":     "PersistentVolumeClaim",
 							"name":     "wrong-pvc-name",
@@ -659,6 +658,194 @@ func TestGetPvcProvisioner(t *testing.T) {
 			}
 			result := getPvcProvisioner(pvc)
 			require.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestIsNamespacePaused(t *testing.T) {
+	client := fake.NewClientset()
+	informerFactory := informers.NewSharedInformerFactory(client, 0)
+	NamespaceInformer = informerFactory.Core().V1().Namespaces()
+
+	tests := []struct {
+		name      string
+		namespace *corev1.Namespace
+		lookup    string
+		expected  bool
+	}{
+		{
+			name: "Namespace paused=true",
+			namespace: &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "ns-paused",
+					Annotations: map[string]string{constants.PauseAnnotation: "true"},
+				},
+			},
+			lookup:   "ns-paused",
+			expected: true,
+		},
+		{
+			name: "Namespace paused=false",
+			namespace: &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "ns-not-paused",
+					Annotations: map[string]string{constants.PauseAnnotation: "false"},
+				},
+			},
+			lookup:   "ns-not-paused",
+			expected: false,
+		},
+		{
+			name: "Namespace has no annotation",
+			namespace: &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{Name: "ns-plain"},
+			},
+			lookup:   "ns-plain",
+			expected: false,
+		},
+		{
+			name:     "Namespace not found",
+			lookup:   "ns-missing",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			indexer := NamespaceInformer.Informer().GetIndexer()
+			for _, obj := range indexer.List() {
+				_ = indexer.Delete(obj)
+			}
+			if tt.namespace != nil {
+				require.NoError(t, indexer.Add(tt.namespace))
+			}
+
+			require.Equal(t, tt.expected, isNamespacePaused(tt.lookup))
+		})
+	}
+}
+
+func TestIsPvcPaused(t *testing.T) {
+	client := fake.NewClientset()
+	informerFactory := informers.NewSharedInformerFactory(client, 0)
+	NamespaceInformer = informerFactory.Core().V1().Namespaces()
+
+	nsName := "test-ns"
+	pausedNs := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        nsName,
+			Annotations: map[string]string{constants.PauseAnnotation: "true"},
+		},
+	}
+	unpausedNs := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        nsName,
+			Annotations: map[string]string{constants.PauseAnnotation: "false"},
+		},
+	}
+
+	tests := []struct {
+		name      string
+		pvc       *corev1.PersistentVolumeClaim
+		namespace *corev1.Namespace
+		expected  bool
+	}{
+		{
+			name:      "PVC is nil, NS not paused",
+			pvc:       nil,
+			namespace: unpausedNs,
+			expected:  false,
+		},
+		{
+			name:      "PVC is nil, NS paused",
+			pvc:       nil,
+			namespace: pausedNs,
+			expected:  true,
+		},
+		{
+			name: "PVC no annotation, NS not paused",
+			pvc: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{Namespace: nsName},
+			},
+			namespace: unpausedNs,
+			expected:  false,
+		},
+		{
+			name: "PVC no annotation, NS paused",
+			pvc: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{Namespace: nsName},
+			},
+			namespace: pausedNs,
+			expected:  true,
+		},
+		{
+			name: "PVC paused=true, NS not paused",
+			pvc: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:   nsName,
+					Annotations: map[string]string{constants.PauseAnnotation: "true"},
+				},
+			},
+			namespace: unpausedNs,
+			expected:  true,
+		},
+		{
+			name: "PVC paused=true, NS paused",
+			pvc: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:   nsName,
+					Annotations: map[string]string{constants.PauseAnnotation: "true"},
+				},
+			},
+			namespace: pausedNs,
+			expected:  true,
+		},
+		{
+			name: "PVC paused=false, NS not paused",
+			pvc: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:   nsName,
+					Annotations: map[string]string{constants.PauseAnnotation: "false"},
+				},
+			},
+			namespace: unpausedNs,
+			expected:  false,
+		},
+		{
+			name: "PVC paused=false, NS paused",
+			pvc: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:   nsName,
+					Annotations: map[string]string{constants.PauseAnnotation: "false"},
+				},
+			},
+			namespace: pausedNs,
+			expected:  false, // PVC takes precedence
+		},
+		{
+			name: "PVC invalid pause value, NS paused",
+			pvc: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:   nsName,
+					Annotations: map[string]string{constants.PauseAnnotation: "invalid"},
+				},
+			},
+			namespace: pausedNs,
+			expected:  false, // PVC takes precedence, and invalid is not true
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			indexer := NamespaceInformer.Informer().GetIndexer()
+			for _, obj := range indexer.List() {
+				_ = indexer.Delete(obj)
+			}
+			if tt.namespace != nil {
+				require.NoError(t, indexer.Add(tt.namespace))
+			}
+
+			require.Equal(t, tt.expected, isPvcPaused(tt.pvc, nsName))
 		})
 	}
 }

@@ -1,4 +1,4 @@
-module github.com/skalanetworks/volume-replicator
+module github.com/super-phenix/volume-replicator
 
 go 1.25.3
 

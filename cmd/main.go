@@ -6,8 +6,8 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/skalanetworks/volume-replicator/internal/k8s"
-	"github.com/skalanetworks/volume-replicator/internal/replicator"
+	"github.com/super-phenix/volume-replicator/internal/k8s"
+	"github.com/super-phenix/volume-replicator/internal/replicator"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/klog/v2"
 )
