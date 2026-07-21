@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/skalanetworks/volume-replicator/internal/constants"
-	"github.com/skalanetworks/volume-replicator/internal/k8s"
+	"github.com/super-phenix/volume-replicator/internal/constants"
+	"github.com/super-phenix/volume-replicator/internal/k8s"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -170,6 +170,30 @@ func getPvcProvisioner(pvc *corev1.PersistentVolumeClaim) string {
 
 	// Fallback to the deprecated annotation
 	return pvc.Annotations[constants.DeprecatedStorageProvisionerAnnotation]
+}
+
+// isPvcPaused returns whether the replication for a PVC is paused
+// The PVC-level annotation takes precedence over the namespace-level annotation:
+// any explicit value on the PVC (even "false") short-circuits the namespace lookup
+func isPvcPaused(pvc *corev1.PersistentVolumeClaim, namespace string) bool {
+	if pvc != nil {
+		// If the PVC has the annotation specified, it has priority over the one of the namespace
+		if value, ok := pvc.Annotations[constants.PauseAnnotation]; ok {
+			return value == "true"
+		}
+	}
+
+	return isNamespacePaused(namespace)
+}
+
+// isNamespacePaused returns whether replication is paused at the namespace level
+func isNamespacePaused(namespace string) bool {
+	ns, err := NamespaceInformer.Lister().Get(namespace)
+	if err != nil {
+		return false
+	}
+
+	return ns.Annotations[constants.PauseAnnotation] == "true"
 }
 
 // pvcNameMatchesExclusion returns whether a PVC has a name matching the exclusion regex

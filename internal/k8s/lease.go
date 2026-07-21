@@ -2,13 +2,14 @@ package k8s
 
 import (
 	"context"
-	"github.com/skalanetworks/volume-replicator/internal/constants"
+	"os"
+	"time"
+
+	"github.com/super-phenix/volume-replicator/internal/constants"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/klog/v2"
-	"os"
-	"time"
 )
 
 // GetLease returns a Kubernetes lease object

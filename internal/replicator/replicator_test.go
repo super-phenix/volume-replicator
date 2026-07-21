@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/skalanetworks/volume-replicator/internal/constants"
-	"github.com/skalanetworks/volume-replicator/internal/k8s"
 	"github.com/stretchr/testify/require"
+	"github.com/super-phenix/volume-replicator/internal/constants"
+	"github.com/super-phenix/volume-replicator/internal/k8s"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -224,6 +224,148 @@ func TestReconcileVolumeReplication(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "PVC paused -> do not create VR",
+			setup: func() {
+				pausedPvc := pvc.DeepCopy()
+				pausedPvc.Annotations[constants.PauseAnnotation] = "true"
+				err := PvcInformer.Informer().GetIndexer().Add(pausedPvc)
+				require.NoError(t, err)
+			},
+			verify: func(t *testing.T) {
+				actions := dynamicClient.Actions()
+				for _, action := range actions {
+					require.NotEqual(t, "create", action.GetVerb())
+					require.NotEqual(t, "delete", action.GetVerb())
+				}
+			},
+		},
+		{
+			name: "PVC paused, PVC being deleted -> delete VR anyway",
+			setup: func() {
+				pausedPvc := pvc.DeepCopy()
+				pausedPvc.Annotations[constants.PauseAnnotation] = "true"
+				now := metav1.Now()
+				pausedPvc.DeletionTimestamp = &now
+				err := PvcInformer.Informer().GetIndexer().Add(pausedPvc)
+				require.NoError(t, err)
+				err = VolumeReplicationInformer.Informer().GetIndexer().Add(vr)
+				require.NoError(t, err)
+			},
+			verify: func(t *testing.T) {
+				actions := dynamicClient.Actions()
+				deleted := false
+				for _, action := range actions {
+					if action.GetVerb() == "delete" && action.GetResource().Resource == "volumereplications" {
+						deleted = true
+						break
+					}
+				}
+				require.True(t, deleted, "VR should have been deleted despite PVC pause")
+			},
+		},
+		{
+			name: "Namespace paused, PVC missing -> delete VR",
+			setup: func() {
+				err := NamespaceInformer.Informer().GetIndexer().Add(&corev1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        nsName,
+						Annotations: map[string]string{constants.PauseAnnotation: "true"},
+					},
+				})
+				require.NoError(t, err)
+				err = VolumeReplicationInformer.Informer().GetIndexer().Add(vr)
+				require.NoError(t, err)
+			},
+			verify: func(t *testing.T) {
+				actions := dynamicClient.Actions()
+				deleted := false
+				for _, action := range actions {
+					if action.GetVerb() == "delete" && action.GetResource().Resource == "volumereplications" {
+						deleted = true
+						break
+					}
+				}
+				require.True(t, deleted, "VR should have been deleted despite namespace pause")
+			},
+		},
+		{
+			name: "Namespace paused, PVC being deleted (no PVC-level pause) -> delete VR",
+			setup: func() {
+				err := NamespaceInformer.Informer().GetIndexer().Add(&corev1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        nsName,
+						Annotations: map[string]string{constants.PauseAnnotation: "true"},
+					},
+				})
+				require.NoError(t, err)
+				pvcBeingDeleted := pvc.DeepCopy()
+				now := metav1.Now()
+				pvcBeingDeleted.DeletionTimestamp = &now
+				err = PvcInformer.Informer().GetIndexer().Add(pvcBeingDeleted)
+				require.NoError(t, err)
+				err = VolumeReplicationInformer.Informer().GetIndexer().Add(vr)
+				require.NoError(t, err)
+			},
+			verify: func(t *testing.T) {
+				actions := dynamicClient.Actions()
+				deleted := false
+				for _, action := range actions {
+					if action.GetVerb() == "delete" && action.GetResource().Resource == "volumereplications" {
+						deleted = true
+						break
+					}
+				}
+				require.True(t, deleted, "VR should have been deleted despite namespace pause")
+			},
+		},
+		{
+			name: "Namespace paused, PVC present without VR -> do not create VR",
+			setup: func() {
+				err := NamespaceInformer.Informer().GetIndexer().Add(&corev1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        nsName,
+						Annotations: map[string]string{constants.PauseAnnotation: "true"},
+					},
+				})
+				require.NoError(t, err)
+				err = PvcInformer.Informer().GetIndexer().Add(pvc)
+				require.NoError(t, err)
+			},
+			verify: func(t *testing.T) {
+				actions := dynamicClient.Actions()
+				for _, action := range actions {
+					require.NotEqual(t, "create", action.GetVerb())
+				}
+			},
+		},
+		{
+			name: "PVC pause=false overrides namespace pause=true -> create VR",
+			setup: func() {
+				err := NamespaceInformer.Informer().GetIndexer().Add(&corev1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        nsName,
+						Annotations: map[string]string{constants.PauseAnnotation: "true"},
+					},
+				})
+				require.NoError(t, err)
+				unpausedPvc := pvc.DeepCopy()
+				unpausedPvc.Annotations[constants.PauseAnnotation] = "false"
+				err = PvcInformer.Informer().GetIndexer().Add(unpausedPvc)
+				require.NoError(t, err)
+			},
+			verify: func(t *testing.T) {
+				actions := dynamicClient.Actions()
+				created := false
+				for _, action := range actions {
+					if action.GetVerb() == "create" && action.GetResource().Resource == "volumereplications" {
+						created = true
+						break
+					}
+				}
+				require.True(t, created, "VR should have been created")
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -234,6 +376,9 @@ func TestReconcileVolumeReplication(t *testing.T) {
 			}
 			for _, obj := range VolumeReplicationInformer.Informer().GetIndexer().List() {
 				_ = VolumeReplicationInformer.Informer().GetIndexer().Delete(obj)
+			}
+			for _, obj := range NamespaceInformer.Informer().GetIndexer().List() {
+				_ = NamespaceInformer.Informer().GetIndexer().Delete(obj)
 			}
 			dynamicClient.ClearActions()
 

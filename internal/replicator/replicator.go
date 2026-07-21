@@ -98,6 +98,12 @@ func reconcileVolumeReplication(key string) {
 		return
 	}
 
+	// Both PVC-level and namespace-level pause skip create/update
+	if isPvcPaused(pvc, namespace) {
+		klog.Infof("PVC %s is paused, skipping reconciliation", key)
+		return
+	}
+
 	// Retrieve the VRC that should apply to this PVC
 	replicationClass := getVolumeReplicationClass(pvc)
 	if replicationClass != "" {
@@ -115,6 +121,9 @@ func reconcileVolumeReplication(key string) {
 
 		if !vrcExists || !vrCorrect {
 			klog.Infof("deleting VolumeReplication %s as it doesn't conform anymore, vrcExists(%t), vrCorrect(%t)", key, vrcExists, vrCorrect)
+
+			// If we're meant to update the VolumeReplication (!vrCorrect), we delete it here, and it will trigger an
+			// event that will bring us back in this function to re-create it with the correct definition
 			cleanupVolumeReplication(name, namespace)
 			return
 		}

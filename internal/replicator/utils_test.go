@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/skalanetworks/volume-replicator/internal/constants"
-	"github.com/skalanetworks/volume-replicator/internal/k8s"
 	"github.com/stretchr/testify/require"
+	"github.com/super-phenix/volume-replicator/internal/constants"
+	"github.com/super-phenix/volume-replicator/internal/k8s"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -659,6 +659,69 @@ func TestGetPvcProvisioner(t *testing.T) {
 			}
 			result := getPvcProvisioner(pvc)
 			require.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestIsNamespacePaused(t *testing.T) {
+	client := fake.NewClientset()
+	informerFactory := informers.NewSharedInformerFactory(client, 0)
+	NamespaceInformer = informerFactory.Core().V1().Namespaces()
+
+	tests := []struct {
+		name      string
+		namespace *corev1.Namespace
+		lookup    string
+		expected  bool
+	}{
+		{
+			name: "Namespace paused=true",
+			namespace: &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "ns-paused",
+					Annotations: map[string]string{constants.PauseAnnotation: "true"},
+				},
+			},
+			lookup:   "ns-paused",
+			expected: true,
+		},
+		{
+			name: "Namespace paused=false",
+			namespace: &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "ns-not-paused",
+					Annotations: map[string]string{constants.PauseAnnotation: "false"},
+				},
+			},
+			lookup:   "ns-not-paused",
+			expected: false,
+		},
+		{
+			name: "Namespace has no annotation",
+			namespace: &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{Name: "ns-plain"},
+			},
+			lookup:   "ns-plain",
+			expected: false,
+		},
+		{
+			name:     "Namespace not found",
+			lookup:   "ns-missing",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			indexer := NamespaceInformer.Informer().GetIndexer()
+			for _, obj := range indexer.List() {
+				_ = indexer.Delete(obj)
+			}
+			if tt.namespace != nil {
+				require.NoError(t, indexer.Add(tt.namespace))
+			}
+
+			require.Equal(t, tt.expected, isNamespacePaused(tt.lookup))
 		})
 	}
 }
