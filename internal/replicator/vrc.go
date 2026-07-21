@@ -90,23 +90,43 @@ func getVolumeReplicationClassSelector(pvc *corev1.PersistentVolumeClaim) string
 	return getAnnotationValue(pvc, constants.VrcSelectorAnnotation)
 }
 
+// getReplicationState returns the replication state to use for a PVC.
+// The replication state is specified through an annotation on the PVC or on its namespace.
+// The annotation on the PVC has priority over the one of the namespace.
+// If no replication state is found on either PVC or namespace, we return "primary" by default.
+func getReplicationState(pvc *corev1.PersistentVolumeClaim) string {
+	state := getAnnotationValue(pvc, constants.ReplicationStateAnnotation)
+	if state == "" {
+		return "primary"
+	}
+	return state
+}
+
 // getAnnotationValue returns the value of an annotation from a PVC or its namespace.
 // The annotation on the PVC has priority over the one of the namespace.
 func getAnnotationValue(pvc *corev1.PersistentVolumeClaim, annotation string) string {
+	if pvc == nil {
+		return ""
+	}
+
 	// If the PVC has the annotation specified, it has priority over the one of the namespace
 	if value, ok := pvc.Annotations[annotation]; ok && value != "" {
 		return value
 	}
 
 	// If the PVC doesn't have the annotation specified, fall back to the namespace
-	namespace, err := NamespaceInformer.Lister().Get(pvc.Namespace)
+	return getNamespaceAnnotationValue(pvc.Namespace, annotation)
+}
+
+// getNamespaceAnnotationValue returns the value of an annotation from a namespace.
+func getNamespaceAnnotationValue(namespace string, annotation string) string {
+	ns, err := NamespaceInformer.Lister().Get(namespace)
 	if err != nil {
-		klog.Errorf("failed to retrieve parent namespace for PVC %s/%s: %s", pvc.Namespace, pvc.Name, err.Error())
+		klog.Errorf("failed to retrieve namespace %s: %s", namespace, err.Error())
 		return ""
 	}
 
-	// If the namespace doesn't have the annotation, this will return an empty string
-	return namespace.Annotations[annotation]
+	return ns.Annotations[annotation]
 }
 
 // filterVrcFromSelector returns a VolumeReplicationClass that is in a specific StorageClass Group

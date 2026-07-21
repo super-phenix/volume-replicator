@@ -47,6 +47,11 @@ func TestReconcileVolumeReplication(t *testing.T) {
 		},
 	}
 
+	// Add namespace to informer
+	_ = NamespaceInformer.Informer().GetIndexer().Add(&corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{Name: nsName},
+	})
+
 	vr := &unstructured.Unstructured{}
 	vr.SetUnstructuredContent(map[string]any{
 		"apiVersion": fmt.Sprintf("%s/%s", VolumeReplicationResource.Group, VolumeReplicationResource.Version),

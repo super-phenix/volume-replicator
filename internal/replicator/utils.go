@@ -28,6 +28,13 @@ func isVolumeReplicationCorrect(pvc *corev1.PersistentVolumeClaim, vr *unstructu
 		return false
 	}
 
+	// Check that the replicationState correspond to the one inherited from the PVC/NS
+	replicationState, _, _ := unstructured.NestedString(vr.Object, "spec", "replicationState")
+	if getReplicationState(pvc) != replicationState {
+		klog.Infof("VolumeReplication %s has a replication state mismatch with its parent (got %s)", key, replicationState)
+		return false
+	}
+
 	// Check that the dataSource points to the PVC
 	dataSource, _, _ := unstructured.NestedNullCoercingStringMap(vr.Object, "spec", "dataSource")
 	if dataSource["apiGroup"] != "v1" || dataSource["kind"] != "PersistentVolumeClaim" || dataSource["name"] != pvc.Name {
@@ -90,7 +97,7 @@ func createVolumeReplication(pvc *corev1.PersistentVolumeClaim) error {
 		},
 		"spec": map[string]any{
 			"volumeReplicationClass": getVolumeReplicationClass(pvc),
-			"replicationState":       "primary",
+			"replicationState":       getReplicationState(pvc),
 			"dataSource": map[string]any{
 				"apiGroup": "v1",
 				"kind":     "PersistentVolumeClaim",
@@ -174,27 +181,17 @@ func getPvcProvisioner(pvc *corev1.PersistentVolumeClaim) string {
 }
 
 // isPvcPaused returns whether the replication for a PVC is paused
-// The PVC-level annotation takes precedence over the namespace-level annotation:
-// any explicit value on the PVC (even "false") short-circuits the namespace lookup
 func isPvcPaused(pvc *corev1.PersistentVolumeClaim, namespace string) bool {
-	if pvc != nil {
-		// If the PVC has the annotation specified, it has priority over the one of the namespace
-		if value, ok := pvc.Annotations[constants.PauseAnnotation]; ok {
-			return value == "true"
-		}
+	if pvc == nil {
+		return isNamespacePaused(namespace)
 	}
 
-	return isNamespacePaused(namespace)
+	return getAnnotationValue(pvc, constants.PauseAnnotation) == "true"
 }
 
 // isNamespacePaused returns whether replication is paused at the namespace level
 func isNamespacePaused(namespace string) bool {
-	ns, err := NamespaceInformer.Lister().Get(namespace)
-	if err != nil {
-		return false
-	}
-
-	return ns.Annotations[constants.PauseAnnotation] == "true"
+	return getNamespaceAnnotationValue(namespace, constants.PauseAnnotation) == "true"
 }
 
 // pvcNameMatchesExclusion returns whether a PVC has a name matching the exclusion regex

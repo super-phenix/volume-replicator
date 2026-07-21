@@ -182,6 +182,26 @@ metadata:
 > [!NOTE]
 > While paused, existing `VolumeReplication` objects are frozen in their current state. Unpausing resumes normal reconciliation.
 
+### Replication State
+
+By default, the `replicationState` of the created `VolumeReplication` is set to `primary`.
+You can change this using the `replication.superphenix.net/replicationState` annotation on either the PVC or its namespace.
+
+The annotation on the PVC takes precedence over the annotation on the namespace.
+
+Common values for this annotation are `primary` and `secondary`.
+
+Example — setting the entire namespace as `secondary`:
+
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: my-namespace
+  annotations:
+    replication.superphenix.net/replicationState: "secondary"
+```
+
 ### Excluding PVCs from replication
 
 It is possible to exclude some PVCs from being replicated, even if they have the correct annotations (or their namespace has them).
