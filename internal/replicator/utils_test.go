@@ -2,6 +2,7 @@ package replicator
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -940,7 +941,19 @@ func TestPvcNameMatchesExclusion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ExclusionRegex = tt.exclusionRegex
+			if tt.exclusionRegex != "" {
+				var err error
+				ExclusionRegex, err = regexp.Compile(tt.exclusionRegex)
+				if tt.name != "Invalid regex" {
+					require.NoError(t, err)
+				} else {
+					require.Error(t, err)
+					ExclusionRegex = nil // Simulate what happens when it fails (though main would exit)
+				}
+			} else {
+				ExclusionRegex = nil
+			}
+
 			pvc := &corev1.PersistentVolumeClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: tt.pvcName,

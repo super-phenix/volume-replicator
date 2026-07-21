@@ -2,6 +2,7 @@ package replicator
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -211,11 +212,11 @@ func TestGetVolumeReplicationClass(t *testing.T) {
 
 			// Set ExclusionRegex specifically for each test case
 			if tt.name == "Excluded by name regex" {
-				ExclusionRegex = "exclude-.*"
+				ExclusionRegex = regexp.MustCompile("exclude-.*")
 			} else {
-				ExclusionRegex = ""
+				ExclusionRegex = nil
 			}
-			defer func() { ExclusionRegex = "" }()
+			defer func() { ExclusionRegex = nil }()
 
 			if tt.namespace != nil {
 				err := NamespaceInformer.Informer().GetIndexer().Add(tt.namespace)
