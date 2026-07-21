@@ -72,7 +72,18 @@ func (c *Controller) createPvcInformer(factory informers.SharedInformerFactory) 
 			c.pvcUpdate(newObj.(*corev1.PersistentVolumeClaim))
 		},
 		DeleteFunc: func(obj any) {
-			c.pvcUpdate(obj.(*corev1.PersistentVolumeClaim))
+			pvc, ok := obj.(*corev1.PersistentVolumeClaim)
+			if !ok {
+				tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+				if !ok {
+					return
+				}
+				pvc, ok = tombstone.Obj.(*corev1.PersistentVolumeClaim)
+				if !ok {
+					return
+				}
+			}
+			c.pvcUpdate(pvc)
 		},
 	})
 }
@@ -87,7 +98,18 @@ func (c *Controller) createVolumeReplicationInformer(factory dynamicinformer.Dyn
 			c.volumeReplicationUpdate(oldObj.(*unstructured.Unstructured), newObj.(*unstructured.Unstructured))
 		},
 		DeleteFunc: func(obj any) {
-			c.volumeReplicationCreateOrDelete(obj.(*unstructured.Unstructured))
+			vr, ok := obj.(*unstructured.Unstructured)
+			if !ok {
+				tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+				if !ok {
+					return
+				}
+				vr, ok = tombstone.Obj.(*unstructured.Unstructured)
+				if !ok {
+					return
+				}
+			}
+			c.volumeReplicationCreateOrDelete(vr)
 		},
 	})
 }

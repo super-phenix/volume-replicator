@@ -5,6 +5,7 @@ import (
 	"flag"
 	"os"
 	"os/signal"
+	"regexp"
 
 	"github.com/super-phenix/volume-replicator/internal/k8s"
 	"github.com/super-phenix/volume-replicator/internal/replicator"
@@ -16,15 +17,23 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
-	var kubeconfig, namespace string
+	var kubeconfig, namespace, exclusionRegexStr string
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "path to kubeconfig file")
 	flag.StringVar(&namespace, "namespace", os.Getenv("NAMESPACE"), "deployment namespace")
-	flag.StringVar(&replicator.ExclusionRegex, "exclusion-regex", os.Getenv("EXCLUSION_REGEX"), "regex to exclude PVCs from replication")
+	flag.StringVar(&exclusionRegexStr, "exclusion-regex", os.Getenv("EXCLUSION_REGEX"), "regex to exclude PVCs from replication")
 	klog.InitFlags(nil)
 	flag.Parse()
 
 	if namespace == "" {
 		klog.Fatalf("must provide the namespace in which the controller is running through --namespace")
+	}
+
+	if exclusionRegexStr != "" {
+		var err error
+		replicator.ExclusionRegex, err = regexp.Compile(exclusionRegexStr)
+		if err != nil {
+			klog.Fatalf("failed to compile exclusion regex: %s", err.Error())
+		}
 	}
 
 	if err := k8s.Load(kubeconfig); err != nil {
