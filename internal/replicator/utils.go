@@ -28,13 +28,6 @@ func isVolumeReplicationCorrect(pvc *corev1.PersistentVolumeClaim, vr *unstructu
 		return false
 	}
 
-	// Check that the replicationState correspond to the one inherited from the PVC/NS
-	replicationState, _, _ := unstructured.NestedString(vr.Object, "spec", "replicationState")
-	if getReplicationState(pvc) != replicationState {
-		klog.Infof("VolumeReplication %s has a replication state mismatch with its parent (got %s)", key, replicationState)
-		return false
-	}
-
 	// Check that the dataSource points to the PVC
 	dataSource, _, _ := unstructured.NestedNullCoercingStringMap(vr.Object, "spec", "dataSource")
 	if dataSource["apiGroup"] != "v1" || dataSource["kind"] != "PersistentVolumeClaim" || dataSource["name"] != pvc.Name {
@@ -54,6 +47,19 @@ func cleanupVolumeReplication(name, namespace string) {
 	if err != nil && !errors.IsNotFound(err) {
 		klog.Errorf("couldn't delete VolumeReplication for PVC %s/%s", namespace, name)
 	}
+}
+
+// updateVolumeReplication updates the replicationState of a VolumeReplication
+func updateVolumeReplication(pvc *corev1.PersistentVolumeClaim, vr *unstructured.Unstructured) error {
+	// Update the replicationState
+	err := unstructured.SetNestedField(vr.Object, getReplicationState(pvc), "spec", "replicationState")
+	if err != nil {
+		return err
+	}
+
+	resourceInterface := k8s.DynamicClientSet.Resource(VolumeReplicationResource).Namespace(pvc.Namespace)
+	_, err = resourceInterface.Update(context.Background(), vr, metav1.UpdateOptions{})
+	return err
 }
 
 // getPersistentVolumeClaim returns a PersistentVolumeClaim from its key

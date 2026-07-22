@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
@@ -62,8 +63,10 @@ func (c *Controller) processNextItem() bool {
 // - if the VolumeReplication exists
 //   - check if the PVC has a matching VolumeReplicationClass
 //   - and if it doesn't, delete the VolumeReplication
-//   - check if the definition of the VolumeReplication is correct
+//   - check if the target of the VolumeReplication is correct
 //   - and if it doesn't, delete it, and it will be re-created on the next sync
+//   - check if the replicationState of the VolumeReplication is correct
+//   - and if isn't, live update the VolumeReplication
 //
 // - if the VolumeReplication doesn't exist
 //   - and if a corresponding VolumeReplicationClass exists, create the VolumeReplication
@@ -112,9 +115,11 @@ func reconcileVolumeReplication(key string) {
 
 	// The VolumeReplication exists, we need to check:
 	//  - if the PVC still has a matching VolumeReplicationClass
-	//    - and if it doesn't, we need to delete the VolumeReplication
-	//  - if the definition of the VolumeReplication is correct
-	//    - and if it isn't, we need to delete the VolumeReplication
+	//    - and if it doesn't, we need to delete the VolumeReplication (we can't live update the class)
+	//  - if the target of the VolumeReplication is correct
+	//    - and if it isn't, we need to delete the VolumeReplication (we can't live update the target)
+	//  - if the replicationState of the VolumeReplication is correct
+	//    - and if it isn't, we live update the VR
 	if volumeReplication != nil {
 		vrcExists := replicationClass != ""
 		vrCorrect := isVolumeReplicationCorrect(pvc, volumeReplication)
@@ -122,10 +127,20 @@ func reconcileVolumeReplication(key string) {
 		if !vrcExists || !vrCorrect {
 			klog.Infof("deleting VolumeReplication %s as it doesn't conform anymore, vrcExists(%t), vrCorrect(%t)", key, vrcExists, vrCorrect)
 
-			// If we're meant to update the VolumeReplication (!vrCorrect), we delete it here, and it will trigger an
+			// If we're meant to re-create the VolumeReplication (!vrCorrect), we delete it here, and it will trigger an
 			// event that will bring us back in this function to re-create it with the correct definition
 			cleanupVolumeReplication(name, namespace)
 			return
+		}
+
+		// Check if the replicationState needs an update
+		expectedState := getReplicationState(pvc)
+		currentState, _, _ := unstructured.NestedString(volumeReplication.Object, "spec", "replicationState")
+		if currentState != expectedState {
+			klog.Infof("updating VolumeReplication %s with new replication state %s (was %s)", key, expectedState, currentState)
+			if err = updateVolumeReplication(pvc, volumeReplication); err != nil {
+				klog.Errorf("failed to update VolumeReplication %s: %s", key, err.Error())
+			}
 		}
 	}
 
