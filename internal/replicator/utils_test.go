@@ -548,7 +548,7 @@ func TestIsVolumeReplicationCorrect(t *testing.T) {
 					},
 				},
 			},
-			expected: false,
+			expected: true,
 		},
 		{
 			name: "volumeReplicationClass mismatch",

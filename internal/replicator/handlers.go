@@ -12,12 +12,14 @@ import (
 )
 
 // namespaceUpdate is called whenever an update is detected on a namespace
-// We check if the volumeReplicationClass annotation has changed, and if it has,
+// We check if annotations have changed, and if it has,
 // we propagate the update to every PVC inside the namespace
 func (c *Controller) namespaceUpdate(oldNs, newNs *corev1.Namespace) {
-	// Don't continue if the class haven't changed or if the annotations weren't deleted
+	// Don't continue if the annotations have not changed/were not deleted
 	if oldNs.Annotations[constants.VrcValueAnnotation] == newNs.Annotations[constants.VrcValueAnnotation] &&
-		oldNs.Annotations[constants.VrcSelectorAnnotation] == newNs.Annotations[constants.VrcSelectorAnnotation] {
+		oldNs.Annotations[constants.VrcSelectorAnnotation] == newNs.Annotations[constants.VrcSelectorAnnotation] &&
+		oldNs.Annotations[constants.PauseAnnotation] == newNs.Annotations[constants.PauseAnnotation] &&
+		oldNs.Annotations[constants.ReplicationStateAnnotation] == newNs.Annotations[constants.ReplicationStateAnnotation] {
 		return
 	}
 

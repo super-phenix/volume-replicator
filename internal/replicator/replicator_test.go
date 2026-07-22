@@ -337,6 +337,35 @@ func TestReconcileVolumeReplication(t *testing.T) {
 				require.True(t, created, "VR should have been created")
 			},
 		},
+		{
+			name: "VR exists, replicationState mismatch -> update VR",
+			setup: func() {
+				pvcSecondary := pvc.DeepCopy()
+				pvcSecondary.Annotations[constants.ReplicationStateAnnotation] = "secondary"
+				err := PvcInformer.Informer().GetIndexer().Add(pvcSecondary)
+				require.NoError(t, err)
+				err = VolumeReplicationInformer.Informer().GetIndexer().Add(vr)
+				require.NoError(t, err)
+			},
+			verify: func(t *testing.T) {
+				actions := dynamicClient.Actions()
+				updated := slices.ContainsFunc(actions, func(action k8s_testing.Action) bool {
+					if action.GetVerb() != "update" {
+						return false
+					}
+					updateAction := action.(k8s_testing.UpdateAction)
+					obj := updateAction.GetObject().(*unstructured.Unstructured)
+					state, _, _ := unstructured.NestedString(obj.Object, "spec", "replicationState")
+					return state == "secondary"
+				})
+				require.True(t, updated, "VR should have been updated with new replication state")
+
+				deleted := slices.ContainsFunc(actions, func(action k8s_testing.Action) bool {
+					return action.GetVerb() == "delete"
+				})
+				require.False(t, deleted, "VR should not have been deleted")
+			},
+		},
 	}
 
 	for _, tt := range tests {
