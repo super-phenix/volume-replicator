@@ -63,10 +63,10 @@ func (c *Controller) processNextItem() bool {
 // - if the VolumeReplication exists
 //   - check if the PVC has a matching VolumeReplicationClass
 //   - and if it doesn't, delete the VolumeReplication
-//   - check if the target of the VolumeReplication is correct
-//   - and if it doesn't, delete it, and it will be re-created on the next sync
+//   - check if the class/target of the VolumeReplication is correct
+//   - and if it isn't, delete it, and it will be re-created on the next sync
 //   - check if the replicationState of the VolumeReplication is correct
-//   - and if isn't, live update the VolumeReplication
+//   - and if it isn't, live update the VolumeReplication
 //
 // - if the VolumeReplication doesn't exist
 //   - and if a corresponding VolumeReplicationClass exists, create the VolumeReplication
@@ -115,9 +115,9 @@ func reconcileVolumeReplication(key string) {
 
 	// The VolumeReplication exists, we need to check:
 	//  - if the PVC still has a matching VolumeReplicationClass
-	//    - and if it doesn't, we need to delete the VolumeReplication (we can't live update the class)
-	//  - if the target of the VolumeReplication is correct
-	//    - and if it isn't, we need to delete the VolumeReplication (we can't live update the target)
+	//    - and if it doesn't, we need to delete the VolumeReplication
+	//  - if the class/target of the VolumeReplication is correct
+	//    - and if it isn't, we need to delete the VolumeReplication (we can't live update those fields)
 	//  - if the replicationState of the VolumeReplication is correct
 	//    - and if it isn't, we live update the VR
 	if volumeReplication != nil {
